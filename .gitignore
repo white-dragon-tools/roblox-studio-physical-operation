@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Test outputs
+tests/capture_test_output/
+tests/screenshots/
+screenshots/
+
+# Lock files
+*.lock
+
+# Reference images (not needed in repo)
+roblox_studio_mcp/buttons*.jpg
