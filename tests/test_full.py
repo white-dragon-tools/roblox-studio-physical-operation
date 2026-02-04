@@ -185,8 +185,8 @@ def main():
     
     # 6. 开始游戏
     test_game_start()
-    print("\nWaiting 3 seconds...")
-    time.sleep(3)
+    print("\nWaiting 7 seconds...")
+    time.sleep(7)
     
     # 7. 检测工具栏状态（运行中）
     test_toolbar_state()
@@ -196,8 +196,8 @@ def main():
     
     # 9. 停止游戏
     test_game_stop()
-    print("\nWaiting 2 seconds...")
-    time.sleep(2)
+    print("\nWaiting 7 seconds...")
+    time.sleep(7)
     
     # 10. 检测工具栏状态（停止后）
     test_toolbar_state()
