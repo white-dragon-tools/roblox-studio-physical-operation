@@ -5,12 +5,53 @@
 ## 安装
 
 ```bash
-pip install -r requirements.txt
+pip install roblox-studio-mcp
 ```
 
-## 使用
+## 配置 MCP
+
+### Claude Desktop
+
+编辑 `%APPDATA%\Claude\claude_desktop_config.json`：
+
+```json
+{
+  "mcpServers": {
+    "roblox-studio": {
+      "command": "python",
+      "args": ["-m", "roblox_studio_mcp"]
+    }
+  }
+}
+```
+
+### Droid
+
+编辑 `~/.factory/mcp.json`：
+
+```json
+{
+  "mcpServers": {
+    "roblox-studio": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["-m", "roblox_studio_mcp"]
+    }
+  }
+}
+```
+
+> **注意**：Windows Store 版 Python 可能需要使用完整路径：
+> ```json
+> "command": "C:\\Users\\<用户名>\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\\python.exe"
+> ```
+
+## 从源码安装
 
 ```bash
+git clone https://github.com/white-dragon-tools/roblox-studio-physical-operation-mcp.git
+cd roblox-studio-physical-operation-mcp
+pip install -r requirements.txt
 python -m roblox_studio_mcp
 ```
 
