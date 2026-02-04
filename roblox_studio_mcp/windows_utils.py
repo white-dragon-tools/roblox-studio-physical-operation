@@ -8,6 +8,17 @@ import time
 from typing import Optional
 import winreg
 
+# 设置 DPI 感知 (必须在任何 GUI 操作之前调用)
+# PROCESS_PER_MONITOR_DPI_AWARE = 2
+try:
+    ctypes.windll.shcore.SetProcessDpiAwareness(2)
+except Exception:
+    # Windows 8.1 之前的系统使用旧 API
+    try:
+        ctypes.windll.user32.SetProcessDPIAware()
+    except Exception:
+        pass
+
 # Windows API
 user32 = ctypes.windll.user32
 
