@@ -202,10 +202,10 @@ def main():
     # 10. 检测工具栏状态（停止后）
     test_toolbar_state()
     
-    # 11. 关闭 Place（可选）
-    # print("\nClosing Studio in 2 seconds...")
-    # time.sleep(2)
-    # test_studio_close()
+    # 11. 关闭 Place
+    print("\nClosing Studio in 2 seconds...")
+    time.sleep(2)
+    test_studio_close()
     
     print("\n" + "=" * 60)
     print("All tests completed!")
