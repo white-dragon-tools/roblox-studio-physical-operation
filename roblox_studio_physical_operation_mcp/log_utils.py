@@ -13,8 +13,8 @@ from dataclasses import dataclass
 
 LOG_DIR = os.path.expandvars(r"%LOCALAPPDATA%\Roblox\logs")
 
-# 默认只读取这些类别的日志
-DEFAULT_CATEGORIES = ["FLog::Output"]
+# 默认读取这些类别的日志（包含用户脚本的 print 和 warn 输出）
+DEFAULT_CATEGORIES = ["FLog::Output", "FLog::Warning"]
 
 
 @dataclass
