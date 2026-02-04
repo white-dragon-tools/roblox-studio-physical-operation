@@ -18,7 +18,7 @@ from .windows_utils import (
 from .log_utils import get_recent_logs, search_logs, clean_old_logs
 from .toolbar_detector import detect_toolbar_state, detect_toolbar_state_with_debug
 
-mcp = FastMCP("roblox-studio-mcp")
+mcp = FastMCP("roblox-studio-physical-operation-mcp")
 
 # 截图输出目录 (系统临时文件夹)
 import tempfile
