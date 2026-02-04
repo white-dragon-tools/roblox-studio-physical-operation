@@ -1,0 +1,9 @@
+# MCP 服务核心依赖
+mcp>=1.0.0
+pillow
+opencv-python
+pywin32
+
+# 可选：测试依赖
+# dxcam
+# mss
