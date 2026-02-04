@@ -12,149 +12,182 @@ import os
 # 添加项目路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from roblox_studio_mcp.studio_manager import studio_manager
-from roblox_studio_mcp.windows_utils import send_key_to_window, send_key_combo_to_window, capture_window, VK_F5, VK_F12, VK_SHIFT
-from roblox_studio_mcp.log_utils import get_recent_logs
+from roblox_studio_mcp.server import (
+    studio_list, studio_open, studio_close, studio_query,
+    game_start, game_stop, logs_get, screenshot, toolbar_state
+)
 
-PLACE_PATH = r"D:\workspace\white-dragon-tools\roblox-studio-physical-operation-mcp\main\tests\game.rbxl"
-SCREENSHOT_DIR = os.path.join(os.path.dirname(__file__), "screenshots")
+PLACE_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "game.rbxl"))
 
 
-def test_open_place():
+def test_studio_list():
     print("=" * 60)
-    print("[TEST] open_place")
+    print("[TEST] studio_list")
     print("=" * 60)
+    
+    result = studio_list()
+    print(f"Running instances: {len(result)}")
+    for inst in result:
+        print(f"  - PID: {inst.get('pid')}, Type: {inst.get('type')}")
+        if inst.get('place_path'):
+            print(f"    Path: {inst.get('place_path')}")
+        if inst.get('place_id'):
+            print(f"    Place ID: {inst.get('place_id')}")
+    return result
 
-    success, msg = studio_manager.open_place(PLACE_PATH)
-    print(f"Result: {success}")
-    print(f"Message: {msg}")
 
-    if success:
-        status = studio_manager.get_status()
-        print(f"Status: {status}")
-    return success
-
-
-def test_start_game():
+def test_studio_open():
     print("\n" + "=" * 60)
-    print("[TEST] start_game (F5)")
+    print("[TEST] studio_open")
     print("=" * 60)
-
-    status = studio_manager.get_status()
-    if not status.get("active"):
-        print("Error: No active session")
-        return False
-
-    hwnd = status.get("hwnd")
-    print(f"Sending F5 to HWND: {hwnd}")
-    success = send_key_to_window(hwnd, VK_F5)
-    print(f"Result: {success}")
-    return success
+    
+    result = studio_open(PLACE_PATH)
+    print(f"Result: {result}")
+    return "成功" in result or "已经" in result
 
 
-def test_stop_game():
+def test_studio_query():
     print("\n" + "=" * 60)
-    print("[TEST] stop_game (Shift+F5)")
+    print("[TEST] studio_query")
     print("=" * 60)
-
-    status = studio_manager.get_status()
-    if not status.get("active"):
-        print("Error: No active session")
-        return False
-
-    hwnd = status.get("hwnd")
-    print(f"Sending Shift+F5 to HWND: {hwnd}")
-    success = send_key_combo_to_window(hwnd, [VK_SHIFT, VK_F5])
-    print(f"Result: {success}")
-    return success
+    
+    result = studio_query(place_path=PLACE_PATH)
+    print(f"Active: {result.get('active')}")
+    print(f"Ready: {result.get('ready')}")
+    print(f"PID: {result.get('pid')}")
+    print(f"Has Modal: {result.get('has_modal')}")
+    return result.get('active', False)
 
 
-def test_capture_screenshot():
+def test_toolbar_state():
     print("\n" + "=" * 60)
-    print("[TEST] capture_screenshot")
+    print("[TEST] toolbar_state")
     print("=" * 60)
-
-    status = studio_manager.get_status()
-    if not status.get("active"):
-        print("Error: No active session")
-        return False
-
-    hwnd = status.get("hwnd")
-    os.makedirs(SCREENSHOT_DIR, exist_ok=True)
-    output_path = os.path.join(SCREENSHOT_DIR, "test_screenshot.png")
-
-    print(f"Capturing HWND: {hwnd}")
-    success = capture_window(hwnd, output_path)
-    print(f"Result: {success}")
-    if success:
-        print(f"Saved to: {output_path}")
-    return success
+    
+    result = toolbar_state(place_path=PLACE_PATH)
+    print(f"Game State: {result.get('game_state')}")
+    print(f"Play: {result.get('play')}")
+    print(f"Pause: {result.get('pause')}")
+    print(f"Stop: {result.get('stop')}")
+    return result
 
 
-def test_get_logs():
+def test_game_start():
     print("\n" + "=" * 60)
-    print("[TEST] get_logs")
+    print("[TEST] game_start")
     print("=" * 60)
-
-    status = studio_manager.get_status()
-    if not status.get("active"):
-        print("Error: No active session")
-        return False
-
-    log_path = status.get("log_path")
-    print(f"Log path: {log_path}")
-
-    entries = get_recent_logs(log_path, limit=5)
-    print(f"Got {len(entries)} entries:")
-    for e in entries:
-        print(f"  [{e.level}] {e.category}: {e.message[:50]}...")
+    
+    result = game_start(place_path=PLACE_PATH)
+    print(f"Result: {result}")
     return True
 
 
-def test_close_place():
+def test_game_stop():
     print("\n" + "=" * 60)
-    print("[TEST] close_place")
+    print("[TEST] game_stop")
     print("=" * 60)
+    
+    result = game_stop(place_path=PLACE_PATH)
+    print(f"Result: {result}")
+    return True
 
-    success, msg = studio_manager.close_place()
-    print(f"Result: {success}")
-    print(f"Message: {msg}")
-    return success
+
+def test_logs_get():
+    print("\n" + "=" * 60)
+    print("[TEST] logs_get")
+    print("=" * 60)
+    
+    result = logs_get(place_path=PLACE_PATH, timestamps=True)
+    print(f"Start Line: {result.get('start_line')}")
+    print(f"Last Line: {result.get('last_line')}")
+    print(f"Remaining: {result.get('remaining')}")
+    logs = result.get('logs', '')
+    lines = logs.split('\n')[:5]
+    print(f"First 5 lines:")
+    for line in lines:
+        print(f"  {line[:80]}")
+    return True
+
+
+def test_screenshot():
+    print("\n" + "=" * 60)
+    print("[TEST] screenshot")
+    print("=" * 60)
+    
+    result = screenshot(place_path=PLACE_PATH)
+    print(f"Result: {result}")
+    return "保存" in str(result)
+
+
+def test_studio_close():
+    print("\n" + "=" * 60)
+    print("[TEST] studio_close")
+    print("=" * 60)
+    
+    result = studio_close(place_path=PLACE_PATH)
+    print(f"Result: {result}")
+    return True
 
 
 def main():
     print("Roblox Studio MCP Full Test")
     print("=" * 60)
-
-    # 1. 打开 Place
-    if not test_open_place():
-        print("\nFailed to open place, aborting")
+    
+    # 0. 列出当前实例
+    instances = test_studio_list()
+    
+    # 检查是否已经打开
+    already_open = any(
+        inst.get('place_path') and PLACE_PATH.lower() in inst.get('place_path', '').lower()
+        for inst in instances
+    )
+    
+    if not already_open:
+        # 1. 打开 Place
+        if not test_studio_open():
+            print("\nFailed to open place, aborting")
+            return
+        
+        print("\nWaiting 8 seconds for Studio to fully load...")
+        time.sleep(8)
+    else:
+        print("\nStudio already open, skipping open step")
+    
+    # 2. 查询状态
+    if not test_studio_query():
+        print("\nStudio not active, aborting")
         return
-
-    print("\nWaiting 5 seconds for Studio to fully load...")
-    time.sleep(5)
-
-    # 2. 截图
-    test_capture_screenshot()
-
-    # 3. 开始游戏
-    test_start_game()
+    
+    # 3. 检测工具栏状态
+    test_toolbar_state()
+    
+    # 4. 截图
+    test_screenshot()
+    
+    # 5. 开始游戏
+    test_game_start()
     print("\nWaiting 3 seconds...")
     time.sleep(3)
-
-    # 4. 获取日志
-    test_get_logs()
-
-    # 5. 停止游戏
-    test_stop_game()
+    
+    # 6. 检测工具栏状态（运行中）
+    test_toolbar_state()
+    
+    # 7. 获取日志
+    test_logs_get()
+    
+    # 8. 停止游戏
+    test_game_stop()
     print("\nWaiting 2 seconds...")
     time.sleep(2)
-
-    # 6. 关闭 Place
-    print("\nClosing Studio in 2 seconds...")
-    time.sleep(2)
-    test_close_place()
-
+    
+    # 9. 检测工具栏状态（停止后）
+    test_toolbar_state()
+    
+    # 10. 关闭 Place（可选）
+    # print("\nClosing Studio in 2 seconds...")
+    # time.sleep(2)
+    # test_studio_close()
+    
     print("\n" + "=" * 60)
     print("All tests completed!")
     print("=" * 60)
