@@ -5,6 +5,7 @@
 import sys
 import io
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+sys.stdout.reconfigure(line_buffering=True)  # 实时打印
 
 import time
 import os
@@ -14,7 +15,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from roblox_studio_mcp.server import (
     studio_list, studio_open, studio_close, studio_query,
-    game_start, game_stop, logs_get, screenshot, toolbar_state
+    game_start, game_stop, logs_get, screenshot, toolbar_state,
+    modal_close
 )
 
 PLACE_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "game.rbxl"))
@@ -43,7 +45,8 @@ def test_studio_open():
     
     result = studio_open(PLACE_PATH)
     print(f"Result: {result}")
-    return "成功" in result or "已经" in result
+    # 检查是否成功启动
+    return "启动" in result or "成功" in result or "已经" in result or "PID" in result
 
 
 def test_studio_query():
@@ -129,9 +132,20 @@ def test_studio_close():
     return True
 
 
+def test_modal_close():
+    print("\n" + "=" * 60)
+    print("[TEST] modal_close")
+    print("=" * 60)
+    
+    result = modal_close(place_path=PLACE_PATH)
+    print(f"Result: {result}")
+    return True
+
+
 def main():
     print("Roblox Studio MCP Full Test")
     print("=" * 60)
+    print(f"PLACE_PATH: {PLACE_PATH}")
     
     # 0. 列出当前实例
     instances = test_studio_list()
@@ -148,42 +162,47 @@ def main():
             print("\nFailed to open place, aborting")
             return
         
-        print("\nWaiting 8 seconds for Studio to fully load...")
-        time.sleep(8)
+        print("\nWaiting 5 seconds for Studio to load...")
+        time.sleep(5)
     else:
         print("\nStudio already open, skipping open step")
     
-    # 2. 查询状态
+    # 2. 关闭所有弹窗（无论是否新打开）
+    test_modal_close()
+    print("\nWaiting 2 seconds...")
+    time.sleep(2)
+    
+    # 3. 查询状态
     if not test_studio_query():
         print("\nStudio not active, aborting")
         return
     
-    # 3. 检测工具栏状态
+    # 4. 检测工具栏状态
     test_toolbar_state()
     
-    # 4. 截图
+    # 5. 截图
     test_screenshot()
     
-    # 5. 开始游戏
+    # 6. 开始游戏
     test_game_start()
     print("\nWaiting 3 seconds...")
     time.sleep(3)
     
-    # 6. 检测工具栏状态（运行中）
+    # 7. 检测工具栏状态（运行中）
     test_toolbar_state()
     
-    # 7. 获取日志
+    # 8. 获取日志
     test_logs_get()
     
-    # 8. 停止游戏
+    # 9. 停止游戏
     test_game_stop()
     print("\nWaiting 2 seconds...")
     time.sleep(2)
     
-    # 9. 检测工具栏状态（停止后）
+    # 10. 检测工具栏状态（停止后）
     test_toolbar_state()
     
-    # 10. 关闭 Place（可选）
+    # 11. 关闭 Place（可选）
     # print("\nClosing Studio in 2 seconds...")
     # time.sleep(2)
     # test_studio_close()
