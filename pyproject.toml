@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "roblox-studio-mcp"
+name = "roblox-studio-physical-operation-mcp"
 version = "0.1.0"
 description = "MCP server for controlling Roblox Studio - toolbar detection, game control, log analysis"
 readme = "README.md"
@@ -43,10 +43,10 @@ Repository = "https://github.com/white-dragon-tools/roblox-studio-physical-opera
 Issues = "https://github.com/white-dragon-tools/roblox-studio-physical-operation-mcp/issues"
 
 [project.scripts]
-roblox-studio-mcp = "roblox_studio_mcp:main"
+roblox-studio-physical-operation-mcp = "roblox_studio_physical_operation_mcp:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["roblox_studio_mcp"]
+packages = ["roblox_studio_physical_operation_mcp"]
 
 [tool.hatch.build.targets.wheel.shared-data]
-"roblox_studio_mcp/templates" = "roblox_studio_mcp/templates"
+"roblox_studio_physical_operation_mcp/templates" = "roblox_studio_physical_operation_mcp/templates"

@@ -5,7 +5,7 @@
 ## 安装
 
 ```bash
-pip install roblox-studio-mcp
+pip install roblox-studio-physical-operation-mcp
 ```
 
 ## 配置 MCP
@@ -19,7 +19,7 @@ pip install roblox-studio-mcp
   "mcpServers": {
     "roblox-studio": {
       "command": "python",
-      "args": ["-m", "roblox_studio_mcp"]
+      "args": ["-m", "roblox_studio_physical_operation_mcp"]
     }
   }
 }
@@ -35,7 +35,7 @@ pip install roblox-studio-mcp
     "roblox-studio": {
       "type": "stdio",
       "command": "python",
-      "args": ["-m", "roblox_studio_mcp"]
+      "args": ["-m", "roblox_studio_physical_operation_mcp"]
     }
   }
 }
@@ -52,7 +52,7 @@ pip install roblox-studio-mcp
 git clone https://github.com/white-dragon-tools/roblox-studio-physical-operation-mcp.git
 cd roblox-studio-physical-operation-mcp
 pip install -r requirements.txt
-python -m roblox_studio_mcp
+python -m roblox_studio_physical_operation_mcp
 ```
 
 ---

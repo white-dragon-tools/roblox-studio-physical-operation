@@ -4,15 +4,17 @@ __pycache__/
 *.pyo
 
 *.rbxl.lock
-*.png
 dist/
+
 # Test outputs
 tests/capture_test_output/
 tests/screenshots/
 screenshots/
+*.png
+!roblox_studio_physical_operation_mcp/templates/*.png
 
 # Lock files
 *.lock
 
 # Reference images (not needed in repo)
-roblox_studio_mcp/buttons*.jpg
+roblox_studio_physical_operation_mcp/buttons*.jpg

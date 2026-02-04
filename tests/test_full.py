@@ -13,7 +13,7 @@ import os
 # 添加项目路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from roblox_studio_mcp.server import (
+from roblox_studio_physical_operation_mcp.server import (
     studio_list, studio_open, studio_close, studio_query,
     game_start, game_stop, logs_get, screenshot, toolbar_state,
     modal_close
