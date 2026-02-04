@@ -18,15 +18,34 @@ python -m roblox_studio_mcp
 
 ## AI 使用指南
 
+### ⚠️ 重要：获取 place_path 或 place_id
+
+**不知道 place_path 或 place_id 时，必须先调用 `studio_list()` 获取！**
+
+```python
+# 先获取当前运行的 Studio 实例
+instances = studio_list()
+# 返回示例:
+# [{"pid": 12345, "type": "local", "place_path": "D:/game.rbxl"},
+#  {"pid": 67890, "type": "cloud", "place_id": 110155533210141}]
+
+# 然后用返回的 place_path 或 place_id 操作
+logs_get(place_path=instances[0]["place_path"])
+```
+
 ### 推荐工作流程
 
-**编码**
+**调试已打开的 Studio**
 ```
-1. 编码
-2. 生成 rbxl
+1. studio_list()               # 获取运行中的 Studio 实例
+2. studio_query(place_path)    # 查询状态
+3. modal_close(place_path)     # 如果有模态弹窗，关闭它们
+4. game_start(place_path)      # 开始游戏
+5. logs_get(place_path)        # 获取日志
+6. game_stop(place_path)       # 停止游戏
 ```
 
-**调试**
+**打开新的 Studio**
 ```
 1. studio_open(place_path)     # 打开 Studio（本地文件）
 2. studio_query(place_path)    # 查询状态
