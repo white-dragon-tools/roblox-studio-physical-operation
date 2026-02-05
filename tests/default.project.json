@@ -11,7 +11,10 @@
     "StarterPlayer": {
       "$className": "StarterPlayer",
       "StarterPlayerScripts": {
-        "$className": "StarterPlayerScripts"
+        "$className": "StarterPlayerScripts",
+        "ClientTestScript": {
+          "$path": "src/ClientTestScript.client.lua"
+        }
       }
     },
     "Workspace": {
