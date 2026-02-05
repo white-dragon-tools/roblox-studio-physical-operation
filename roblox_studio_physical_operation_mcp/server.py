@@ -15,7 +15,7 @@ from .windows_utils import (
     get_modal_windows, close_all_modals,
     VK_F5, VK_F12, VK_SHIFT
 )
-from .log_utils import get_recent_logs, search_logs, clean_old_logs
+from .log_utils import get_recent_logs, search_logs, clean_old_logs, find_errors, get_logs_by_date
 from .toolbar_detector import detect_toolbar_state, detect_toolbar_state_with_debug
 
 mcp = FastMCP("roblox-studio-physical-operation-mcp")
@@ -342,17 +342,25 @@ def logs_get(
     place_id: int = None,
     after_line: int = None, 
     before_line: int = None,
-    timestamps: bool = False
+    start_date: str = None,
+    end_date: str = None,
+    timestamps: bool = False,
+    context: str = None
 ) -> dict:
     """
     获取当前会话的日志 (仅 FLog::Output，已过滤 Studio 内部日志)。
+    
+    日志会自动标识运行上下文: [P]=Play(游戏运行中), [E]=Edit(编辑模式)
 
     Args:
         place_path: rbxl 文件的完整路径（本地文件）
         place_id: Roblox Place ID（云端 Place）
         after_line: 从哪一行之后开始读取，None 表示从头开始
         before_line: 到哪一行之前结束，None 表示到末尾
+        start_date: 开始日期过滤 (如 "2026-02-03" 或 "2026-02-03T08:00:00")
+        end_date: 结束日期过滤 (如 "2026-02-03" 或 "2026-02-03T23:59:59")
         timestamps: 是否附加时间戳 [HH:MM:SS]，默认 False
+        context: 只返回指定运行上下文的日志 ("play", "edit")
 
     Returns:
         {
@@ -372,7 +380,11 @@ def logs_get(
         session.log_path, 
         after_line=after_line, 
         before_line=before_line,
-        timestamps=timestamps
+        start_date=start_date,
+        end_date=end_date,
+        timestamps=timestamps,
+        run_context=context,
+        include_context=True  # 默认显示上下文
     )
 
 
@@ -383,10 +395,15 @@ def logs_search(
     pattern: str = "",
     after_line: int = None,
     before_line: int = None,
-    timestamps: bool = False
+    start_date: str = None,
+    end_date: str = None,
+    timestamps: bool = False,
+    context: str = None
 ) -> dict:
     """
     在当前会话日志中搜索匹配的条目。
+    
+    日志会自动标识运行上下文: [P]=Play(游戏运行中), [E]=Edit(编辑模式)
 
     Args:
         place_path: rbxl 文件的完整路径（本地文件）
@@ -394,7 +411,10 @@ def logs_search(
         pattern: 正则表达式模式
         after_line: 从哪一行之后开始搜索
         before_line: 到哪一行之前结束
+        start_date: 开始日期过滤 (如 "2026-02-03")
+        end_date: 结束日期过滤 (如 "2026-02-03")
         timestamps: 是否附加时间戳
+        context: 只返回指定运行上下文的日志 ("play", "edit")
 
     Returns:
         {
@@ -416,7 +436,11 @@ def logs_search(
         pattern,
         after_line=after_line,
         before_line=before_line,
-        timestamps=timestamps
+        start_date=start_date,
+        end_date=end_date,
+        timestamps=timestamps,
+        run_context=context,
+        include_context=True  # 默认显示上下文
     )
 
 
@@ -433,6 +457,104 @@ def logs_clean(days: int = 7) -> str:
     """
     count = clean_old_logs(days)
     return f"已清理 {count} 个旧日志文件"
+
+
+@mcp.tool()
+def logs_has_error(
+    place_path: str = None,
+    place_id: int = None,
+    after_line: int = None,
+    before_line: int = None,
+    start_date: str = None,
+    end_date: str = None,
+    context: str = None,
+    max_errors: int = 100
+) -> dict:
+    """
+    检测指定范围内是否有错误输出。
+    
+    在指定的行号范围或日期范围内检测是否有错误日志（warn/error）。
+
+    Args:
+        place_path: rbxl 文件的完整路径（本地文件）
+        place_id: Roblox Place ID（云端 Place）
+        after_line: 从哪一行之后开始检测
+        before_line: 到哪一行之前结束
+        start_date: 开始日期过滤 (如 "2026-02-03")
+        end_date: 结束日期过滤 (如 "2026-02-03")
+        context: 只检测指定运行上下文的错误 ("play", "edit")
+        max_errors: 最大返回错误数，默认 100
+
+    Returns:
+        {
+            "has_error": 是否有错误 (bool),
+            "error_count": 错误总数 (int),
+            "errors": [
+                {
+                    "line": 行号,
+                    "timestamp": 时间戳,
+                    "message": 错误内容,
+                    "category": 日志类别,
+                    "level": 日志级别,
+                    "context": 运行上下文 (play/edit/unknown)
+                },
+                ...
+            ]
+        }
+    """
+    success, message, session = _get_session(place_path, place_id)
+    if not success:
+        return {"error": message}
+
+    return find_errors(
+        session.log_path,
+        after_line=after_line,
+        before_line=before_line,
+        start_date=start_date,
+        end_date=end_date,
+        run_context=context,
+        max_errors=max_errors
+    )
+
+
+@mcp.tool()
+def logs_by_date(
+    place_path: str = None,
+    place_id: int = None,
+    start_date: str = None,
+    end_date: str = None,
+    timestamps: bool = True,
+    context: str = None
+) -> dict:
+    """
+    按日期范围获取日志（便捷工具）。
+    
+    这是 logs_get 的便捷版本，专门用于日期范围查询。
+    日志会自动标识运行上下文: [P]=Play(游戏运行中), [E]=Edit(编辑模式)
+
+    Args:
+        place_path: rbxl 文件的完整路径（本地文件）
+        place_id: Roblox Place ID（云端 Place）
+        start_date: 开始日期 (如 "2026-02-03" 或 "2026-02-03T08:00:00")
+        end_date: 结束日期 (如 "2026-02-03" 或 "2026-02-03T23:59:59")
+        timestamps: 是否附加时间戳，默认 True
+        context: 只返回指定运行上下文的日志 ("play", "edit")
+
+    Returns:
+        与 logs_get 相同的返回格式
+    """
+    success, message, session = _get_session(place_path, place_id)
+    if not success:
+        return {"error": message}
+
+    return get_logs_by_date(
+        session.log_path,
+        start_date=start_date,
+        end_date=end_date,
+        timestamps=timestamps,
+        run_context=context,
+        include_context=True  # 默认显示上下文
+    )
 
 
 # ============ 视觉捕获 ============
