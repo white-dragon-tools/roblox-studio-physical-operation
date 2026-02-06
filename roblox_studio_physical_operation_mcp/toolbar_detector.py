@@ -321,6 +321,8 @@ def detect_toolbar_state(hwnd: int) -> Optional[ToolbarState]:
     play_state = ButtonState.UNKNOWN
     pause_state = ButtonState.UNKNOWN
     stop_state = ButtonState.UNKNOWN
+    play_color = None
+    stop_color = None
     
     # 查找播放按钮
     if play_template is not None:
@@ -330,6 +332,7 @@ def detect_toolbar_state(hwnd: int) -> Optional[ToolbarState]:
             h, w = play_template.shape
             state, color = analyze_button_color(pil_image, x, y, w, h)
             play_state = state
+            play_color = color
             buttons.append(ButtonInfo(
                 button_type=ButtonType.PLAY,
                 x=x, y=y, width=w, height=h,
@@ -358,6 +361,7 @@ def detect_toolbar_state(hwnd: int) -> Optional[ToolbarState]:
             h, w = stop_template.shape
             state, color = analyze_button_color(pil_image, x, y, w, h)
             stop_state = state
+            stop_color = color
             buttons.append(ButtonInfo(
                 button_type=ButtonType.STOP,
                 x=x, y=y, width=w, height=h,
@@ -365,7 +369,7 @@ def detect_toolbar_state(hwnd: int) -> Optional[ToolbarState]:
             ))
     
     # 推断游戏状态
-    game_state = infer_game_state(play_state, pause_state, stop_state)
+    game_state = infer_game_state(play_state, pause_state, stop_state, play_color, stop_color)
     
     return ToolbarState(
         play=play_state,
@@ -376,20 +380,45 @@ def detect_toolbar_state(hwnd: int) -> Optional[ToolbarState]:
     )
 
 
-def infer_game_state(play: ButtonState, pause: ButtonState, stop: ButtonState) -> str:
+def infer_game_state(play: ButtonState, pause: ButtonState, stop: ButtonState,
+                     play_color: str = None, stop_color: str = None) -> str:
     """
     根据按钮状态推断游戏状态
     
-    规则（基于实际观察）：
-    - 暂停按钮深灰色(enabled) -> 游戏运行中
-    - 暂停按钮浅灰色(disabled) -> 游戏停止
+    规则（基于实际观察，按优先级）：
+    1. 暂停按钮深灰色(enabled) -> 游戏运行中
+    2. 暂停按钮浅灰色(disabled) -> 游戏停止
+    3. 如果暂停按钮未找到，使用其他信号：
+       - 停止按钮红色(enabled) -> 游戏运行中
+       - 停止按钮灰色(disabled) -> 游戏停止
+       - 播放按钮绿色(enabled) -> 游戏停止
+       - 播放按钮红色(enabled) -> 游戏运行中（播放按钮变成恢复按钮）
     """
+    # 优先使用暂停按钮状态
     if pause == ButtonState.ENABLED:
-        # 暂停按钮深灰色 = 游戏运行中
         return "running"
-    else:
-        # 暂停按钮浅灰色 = 游戏停止
+    elif pause == ButtonState.DISABLED:
         return "stopped"
+    
+    # 暂停按钮未找到时，使用其他信号
+    # 停止按钮红色 = 游戏运行中
+    if stop == ButtonState.ENABLED and stop_color == "red":
+        return "running"
+    
+    # 停止按钮灰色 = 游戏停止
+    if stop == ButtonState.DISABLED:
+        return "stopped"
+    
+    # 播放按钮绿色 = 游戏停止
+    if play == ButtonState.ENABLED and play_color == "green":
+        return "stopped"
+    
+    # 播放按钮红色 = 游戏运行中（播放按钮变成恢复按钮，显示红色）
+    if play == ButtonState.ENABLED and play_color == "red":
+        return "running"
+    
+    # 最终默认
+    return "stopped"
 
 
 def detect_toolbar_state_with_debug(hwnd: int, debug_output_path: str = None) -> Tuple[Optional[ToolbarState], dict]:
@@ -428,6 +457,8 @@ def detect_toolbar_state_with_debug(hwnd: int, debug_output_path: str = None) ->
     play_state = ButtonState.UNKNOWN
     pause_state = ButtonState.UNKNOWN
     stop_state = ButtonState.UNKNOWN
+    play_color = None
+    stop_color = None
     
     # 查找播放按钮
     if play_template is not None:
@@ -437,6 +468,7 @@ def detect_toolbar_state_with_debug(hwnd: int, debug_output_path: str = None) ->
             h, w = play_template.shape
             state, color = analyze_button_color(pil_image, x, y, w, h)
             play_state = state
+            play_color = color
             buttons.append(ButtonInfo(
                 button_type=ButtonType.PLAY,
                 x=x, y=y, width=w, height=h,
@@ -471,6 +503,7 @@ def detect_toolbar_state_with_debug(hwnd: int, debug_output_path: str = None) ->
             h, w = stop_template.shape
             state, color = analyze_button_color(pil_image, x, y, w, h)
             stop_state = state
+            stop_color = color
             buttons.append(ButtonInfo(
                 button_type=ButtonType.STOP,
                 x=x, y=y, width=w, height=h,
@@ -499,7 +532,7 @@ def detect_toolbar_state_with_debug(hwnd: int, debug_output_path: str = None) ->
         debug_info["debug_image"] = debug_output_path
     
     # 推断游戏状态
-    game_state = infer_game_state(play_state, pause_state, stop_state)
+    game_state = infer_game_state(play_state, pause_state, stop_state, play_color, stop_color)
     debug_info["game_state"] = game_state
     
     toolbar_state = ToolbarState(
