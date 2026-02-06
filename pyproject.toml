@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "roblox-studio-physical-operation-mcp"
-version = "0.2.0"
+version = "0.2.1"
 description = "MCP server for controlling Roblox Studio - toolbar detection, game control, log analysis"
 readme = "README.md"
 license = "MIT"

@@ -12,6 +12,7 @@ tests/screenshots/
 screenshots/
 *.png
 !roblox_studio_physical_operation_mcp/templates/*.png
+!tests/toolbar_stats/**/*.png
 
 # Lock files
 *.lock
