@@ -10,12 +10,18 @@
 """
 
 import os
+import sys
 import re
 from datetime import datetime
 from typing import Optional, Generator, Literal
 from dataclasses import dataclass, field
 
-LOG_DIR = os.path.expandvars(r"%LOCALAPPDATA%\Roblox\logs")
+if sys.platform == "win32":
+    LOG_DIR = os.path.expandvars(r"%LOCALAPPDATA%\Roblox\logs")
+elif sys.platform == "darwin":
+    LOG_DIR = os.path.expanduser("~/Library/Logs/Roblox")
+else:
+    LOG_DIR = os.path.expanduser("~/.local/share/Roblox/logs")
 
 # 默认读取这些类别的日志（包含用户脚本的 print, warn, error 输出）
 DEFAULT_CATEGORIES = ["FLog::Output", "FLog::Warning", "FLog::Error"]

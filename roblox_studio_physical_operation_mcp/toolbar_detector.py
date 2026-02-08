@@ -13,7 +13,6 @@
 - 彩色 = enabled (绿色播放、蓝色暂停、红色停止)
 """
 
-import ctypes
 import os
 from typing import Optional, List, Tuple
 from dataclasses import dataclass
@@ -22,11 +21,9 @@ from enum import Enum
 try:
     import cv2
     import numpy as np
-    import win32gui
-    import win32ui
     from PIL import Image
 except ImportError as e:
-    raise ImportError(f"需要安装依赖: pip install opencv-python pywin32 Pillow numpy: {e}")
+    raise ImportError(f"需要安装依赖: pip install opencv-python Pillow numpy: {e}")
 
 
 class ButtonState(Enum):
@@ -93,37 +90,8 @@ TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "templates")
 
 def capture_window_to_image(hwnd: int) -> Optional[Image.Image]:
     """截取窗口为 PIL Image 对象"""
-    try:
-        rect = win32gui.GetWindowRect(hwnd)
-        width = rect[2] - rect[0]
-        height = rect[3] - rect[1]
-        
-        if width <= 0 or height <= 0:
-            return None
-
-        hwnd_dc = win32gui.GetWindowDC(hwnd)
-        mfc_dc = win32ui.CreateDCFromHandle(hwnd_dc)
-        save_dc = mfc_dc.CreateCompatibleDC()
-
-        bitmap = win32ui.CreateBitmap()
-        bitmap.CreateCompatibleBitmap(mfc_dc, width, height)
-        save_dc.SelectObject(bitmap)
-
-        ctypes.windll.user32.PrintWindow(hwnd, save_dc.GetSafeHdc(), 2)
-
-        bmpinfo = bitmap.GetInfo()
-        bmpstr = bitmap.GetBitmapBits(True)
-        img = Image.frombuffer('RGB', (bmpinfo['bmWidth'], bmpinfo['bmHeight']),
-                               bmpstr, 'raw', 'BGRX', 0, 1)
-
-        win32gui.DeleteObject(bitmap.GetHandle())
-        save_dc.DeleteDC()
-        mfc_dc.DeleteDC()
-        win32gui.ReleaseDC(hwnd, hwnd_dc)
-
-        return img
-    except Exception:
-        return None
+    from .platform_utils import capture_window_to_pil
+    return capture_window_to_pil(hwnd)
 
 
 def pil_to_cv2(pil_image: Image.Image) -> np.ndarray:
@@ -270,24 +238,15 @@ def analyze_button_color(pil_image: Image.Image, x: int, y: int,
 def restore_window_if_minimized(hwnd: int) -> bool:
     """
     如果窗口最小化，则恢复窗口
-    
+
     Args:
         hwnd: 窗口句柄
-        
+
     Returns:
         True 如果窗口已恢复或本来就不是最小化
     """
-    import ctypes
-    import time
-    
-    # 检查是否最小化
-    is_iconic = ctypes.windll.user32.IsIconic(hwnd)
-    if is_iconic:
-        # SW_RESTORE = 9
-        ctypes.windll.user32.ShowWindow(hwnd, 9)
-        time.sleep(0.3)  # 等待窗口恢复
-    
-    return True
+    from .platform_utils import restore_window_if_minimized as _restore
+    return _restore(hwnd)
 
 
 def detect_toolbar_state(hwnd: int) -> Optional[ToolbarState]:

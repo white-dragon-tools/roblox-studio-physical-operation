@@ -9,7 +9,7 @@ from datetime import datetime
 from mcp.server.fastmcp import FastMCP
 
 from .studio_manager import open_place, close_place, get_session, get_session_universal
-from .windows_utils import (
+from .platform_utils import (
     send_key_to_window, send_key_combo_to_window,
     capture_window, capture_window_with_modals, find_all_windows_by_pid,
     get_modal_windows, close_all_modals,
@@ -66,7 +66,7 @@ def studio_list() -> list[dict]:
         - place_id: Place ID（云端类型）
     """
     from .studio_manager import get_all_studio_processes, find_latest_studio_logs, get_all_log_cmdlines
-    from .windows_utils import find_window_by_pid
+    from .platform_utils import find_window_by_pid
     import re
     
     processes = get_all_studio_processes()
@@ -91,9 +91,14 @@ def studio_list() -> list[dict]:
                 "place_id": int(place_id_match.group(1))
             })
         else:
-            # 本地文件 - 提取 .rbxl 路径（在 exe 路径之后）
-            # 命令行格式: "...exe" "path.rbxl" 或 ...exe path.rbxl
-            rbxl_match = re.search(r'\.exe["\s]+(.+\.rbxl)', cmdline, re.IGNORECASE)
+            # 本地文件 - 提取 .rbxl 路径
+            # Windows: "...exe" "path.rbxl" 或 ...exe path.rbxl
+            # macOS: .../RobloxStudio path.rbxl
+            import sys
+            if sys.platform == "win32":
+                rbxl_match = re.search(r'\.exe["\s]+(.+\.rbxl)', cmdline, re.IGNORECASE)
+            else:
+                rbxl_match = re.search(r'RobloxStudio["\s]+(.+\.rbxl)', cmdline, re.IGNORECASE)
             place_path = rbxl_match.group(1).strip('"') if rbxl_match else None
             instances.append({
                 "pid": pid,

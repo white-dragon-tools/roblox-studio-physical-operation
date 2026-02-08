@@ -2,7 +2,12 @@
 mcp>=1.0.0
 pillow
 opencv-python
-pywin32
+watchdog
+
+# 平台特定依赖
+pywin32; sys_platform == "win32"
+pyobjc-framework-Quartz; sys_platform == "darwin"
+pyobjc-framework-Cocoa; sys_platform == "darwin"
 
 # 可选：测试依赖
 # dxcam

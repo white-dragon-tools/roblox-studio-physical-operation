@@ -8,17 +8,19 @@ Studio 会话管理
 """
 
 import os
+import sys
 import subprocess
 import time
 import glob
 import json
+import signal
 from typing import Optional
 from dataclasses import dataclass
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 import threading
 
-from .windows_utils import get_studio_path, find_window_by_pid
+from .platform_utils import get_studio_path, find_window_by_pid
 from .log_utils import LOG_DIR
 
 
@@ -98,7 +100,7 @@ def get_log_command_line_raw(log_path: str) -> Optional[str]:
                 if 'Command line:' in line:
                     found_cmd = True
                     continue
-                if found_cmd and 'RobloxStudioBeta.exe' in line:
+                if found_cmd and ('RobloxStudioBeta.exe' in line or 'RobloxStudio' in line):
                     return line
     except Exception:
         pass
@@ -193,22 +195,31 @@ def get_all_log_cmdlines(log_files: list[str]) -> dict[str, str]:
 def get_all_studio_processes() -> list[dict]:
     """
     获取所有运行中的 Studio 进程信息
-    
+
     Returns:
         [{"pid": int, "cmdline": str}, ...]
     """
+    if sys.platform == "win32":
+        return _get_studio_processes_windows()
+    elif sys.platform == "darwin":
+        return _get_studio_processes_macos()
+    return []
+
+
+def _get_studio_processes_windows() -> list[dict]:
+    """Windows: 使用 wmic 获取 Studio 进程"""
     result = subprocess.run(
         ['wmic', 'process', 'where', "name='RobloxStudioBeta.exe'", 'get', 'ProcessId,CommandLine', '/format:csv'],
         capture_output=True,
         text=True
     )
-    
+
     processes = []
     for line in result.stdout.strip().split('\n'):
         line = line.strip()
         if not line or line.startswith('Node,CommandLine'):
             continue
-        
+
         parts = line.split(',')
         if len(parts) >= 3:
             # CSV 格式: Node,CommandLine,ProcessId
@@ -218,7 +229,36 @@ def get_all_studio_processes() -> list[dict]:
                 processes.append({"pid": pid, "cmdline": cmdline})
             except ValueError:
                 pass
-    
+
+    return processes
+
+
+def _get_studio_processes_macos() -> list[dict]:
+    """macOS: 使用 ps 获取 Studio 进程"""
+    result = subprocess.run(
+        ['ps', '-eo', 'pid,command'],
+        capture_output=True,
+        text=True
+    )
+
+    processes = []
+    for line in result.stdout.strip().split('\n'):
+        line = line.strip()
+        if 'RobloxStudio' not in line or 'grep' in line:
+            continue
+        # 跳过 helper 进程
+        if 'RobloxStudioHelper' in line or 'RobloxStudioCrash' in line:
+            continue
+
+        parts = line.split(None, 1)
+        if len(parts) >= 2:
+            try:
+                pid = int(parts[0])
+                cmdline = parts[1]
+                processes.append({"pid": pid, "cmdline": cmdline})
+            except ValueError:
+                pass
+
     return processes
 
 
@@ -249,28 +289,37 @@ def find_session_by_place_path(place_path: str) -> Optional[SessionInfo]:
         SessionInfo 或 None
     """
     # 标准化路径
-    place_path = os.path.normpath(place_path).replace('/', '\\')
-    place_path_lower = place_path.lower()
-    
+    place_path = os.path.normpath(place_path)
+    if sys.platform == "win32":
+        place_path_compare = place_path.replace('/', '\\').lower()
+    else:
+        place_path_compare = place_path
+
     # 获取所有运行中的 Studio 进程
     processes = get_all_studio_processes()
-    
+
     # 获取最新的日志文件及其命令行（使用索引缓存）
     log_files = find_latest_studio_logs(20)
     log_cmdlines = get_all_log_cmdlines(log_files)
-    
+
     for log_path, cmdline in log_cmdlines.items():
         # 标准化命令行中的路径
-        cmdline_normalized = cmdline.replace('/', '\\').lower()
-        
+        if sys.platform == "win32":
+            cmdline_normalized = cmdline.replace('/', '\\').lower()
+        else:
+            cmdline_normalized = cmdline
+
         # 检查是否包含目标路径
-        if place_path_lower not in cmdline_normalized:
+        if place_path_compare not in cmdline_normalized:
             continue
-        
+
         # 找到匹配的日志，现在找对应的进程
         for proc in processes:
-            proc_cmdline = proc['cmdline'].replace('/', '\\').lower()
-            if place_path_lower in proc_cmdline:
+            if sys.platform == "win32":
+                proc_cmdline = proc['cmdline'].replace('/', '\\').lower()
+            else:
+                proc_cmdline = proc['cmdline']
+            if place_path_compare in proc_cmdline:
                 # 找到匹配的进程
                 pid = proc['pid']
                 hwnd = find_window_by_pid(pid)
@@ -385,10 +434,16 @@ def open_place(place_path: str) -> tuple[bool, str]:
     # 获取 Studio 路径
     studio_path = get_studio_path()
     if not studio_path:
-        return False, "无法从注册表获取 Roblox Studio 路径"
+        if sys.platform == "win32":
+            return False, "无法从注册表获取 Roblox Studio 路径"
+        else:
+            return False, "无法找到 Roblox Studio 应用程序"
 
     if not os.path.exists(studio_path):
         return False, f"Roblox Studio 不存在: {studio_path}"
+
+    # 确保日志目录存在
+    os.makedirs(LOG_DIR, exist_ok=True)
 
     # 启动日志监听
     watcher = LogFileWatcher()
@@ -398,7 +453,10 @@ def open_place(place_path: str) -> tuple[bool, str]:
 
     try:
         # 启动 Studio
-        process = subprocess.Popen([studio_path, place_path])
+        if sys.platform == "darwin":
+            process = subprocess.Popen(["open", "-a", studio_path, place_path])
+        else:
+            process = subprocess.Popen([studio_path, place_path])
         pid = process.pid
 
         # 等待日志文件创建
@@ -447,11 +505,19 @@ def close_place(place_path: str = None, place_id: int = None) -> tuple[bool, str
         return False, msg
 
     try:
-        subprocess.run(
-            ["taskkill", "/F", "/PID", str(session.pid)],
-            capture_output=True,
-            timeout=10.0
-        )
+        if sys.platform == "win32":
+            subprocess.run(
+                ["taskkill", "/F", "/PID", str(session.pid)],
+                capture_output=True,
+                timeout=10.0
+            )
+        else:
+            os.kill(session.pid, signal.SIGTERM)
+            time.sleep(0.5)
+            try:
+                os.kill(session.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
         
         # 如果是本地文件，删除 .lock 文件
         if place_path and not place_path.startswith("cloud:"):

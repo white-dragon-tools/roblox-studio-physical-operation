@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "roblox-studio-physical-operation-mcp"
-version = "0.2.1"
+version = "0.3.0"
 description = "MCP server for controlling Roblox Studio - toolbar detection, game control, log analysis"
 readme = "README.md"
 license = "MIT"
@@ -24,6 +24,7 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Operating System :: Microsoft :: Windows",
+    "Operating System :: MacOS",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -34,7 +35,10 @@ dependencies = [
     "mcp>=1.0.0",
     "pillow",
     "opencv-python",
-    "pywin32",
+    "watchdog",
+    "pywin32; sys_platform == 'win32'",
+    "pyobjc-framework-Quartz; sys_platform == 'darwin'",
+    "pyobjc-framework-Cocoa; sys_platform == 'darwin'",
 ]
 
 [project.urls]
