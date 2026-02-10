@@ -1,0 +1,44 @@
+{
+  "name": "@white-dragon-tools/roblox-studio-physical-operation",
+  "version": "0.4.0",
+  "description": "CLI tool for controlling Roblox Studio - toolbar detection, game control, log analysis",
+  "type": "module",
+  "main": "src/index.mjs",
+  "bin": {
+    "rspo": "src/cli.mjs"
+  },
+  "exports": {
+    ".": "./src/index.mjs",
+    "./studio-manager": "./src/studio-manager.mjs",
+    "./platform": "./src/platform/index.mjs",
+    "./log-utils": "./src/log-utils.mjs",
+    "./log-filter": "./src/log-filter.mjs",
+    "./toolbar-detector": "./src/toolbar-detector.mjs"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "roblox",
+    "roblox-studio",
+    "automation"
+  ],
+  "license": "MIT",
+  "author": "White Dragon Tools",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anthropics/roblox-studio-tools"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "koffi": "^2.9.0",
+    "opencv-wasm": "^4.3.0-10",
+    "sharp": "^0.33.0"
+  },
+  "devDependencies": {
+    "vitest": "^3.0.0"
+  }
+}

@@ -1,21 +1,12 @@
-# Python
-__pycache__/
-*.pyc
-*.pyo
+node_modules/
+dist/
 
 *.rbxl.lock
-dist/
 
 # Test outputs
 tests/capture_test_output/
 tests/screenshots/
 screenshots/
 *.png
-!roblox_studio_physical_operation_mcp/templates/*.png
+!templates/*.png
 !tests/toolbar_stats/**/*.png
-
-# Lock files
-*.lock
-
-# Reference images (not needed in repo)
-roblox_studio_physical_operation_mcp/buttons*.jpg
