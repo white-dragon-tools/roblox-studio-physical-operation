@@ -395,65 +395,133 @@ async function screenshotFull(placePath, filename = null) {
 
 // ============ 命令映射 ============
 
+const LOG_OPTIONS = [
+  "  --after-line <n>    从指定行号之后开始",
+  "  --before-line <n>   到指定行号之前结束",
+  "  --start-date <date> 开始日期 (YYYY-MM-DD HH:MM:SS)",
+  "  --end-date <date>   结束日期 (YYYY-MM-DD HH:MM:SS)",
+  "  --timestamps        显示时间戳",
+  "  --context <ctx>     过滤运行上下文 (play/edit)",
+];
+
 const COMMANDS = {
   // 系统
-  studio_help: studioHelp,
-  studio_list: studioList,
-  open: studioOpen,
-  close: studioClose,
-  studio_status: studioStatus,
-  studio_query: studioQuery,
+  studio_help: { fn: studioHelp, args: "", desc: "获取帮助文档" },
+  studio_list: { fn: studioList, args: "", desc: "列出所有运行中的 Studio 实例" },
+  open: { fn: studioOpen, args: "<place_path>", desc: "打开 Studio 并加载指定的 .rbxl 文件" },
+  close: { fn: studioClose, args: "<place_path>", desc: "关闭指定 Place 的 Studio 实例" },
+  studio_status: { fn: studioStatus, args: "<place_path>", desc: "获取指定 Place 的基本状态" },
+  studio_query: { fn: studioQuery, args: "<place_path>", desc: "综合查询状态（进程、窗口、模态弹窗）" },
   // 模态弹窗
-  modal_detect: modalDetect,
-  modal_close: modalClose,
+  modal_detect: { fn: modalDetect, args: "<place_path>", desc: "检测是否存在模态弹窗" },
+  modal_close: { fn: modalClose, args: "<place_path>", desc: "关闭所有模态弹窗" },
   // 游戏控制
-  game_start: gameStart,
-  game_stop: gameStop,
-  game_pause: gamePause,
+  game_start: { fn: gameStart, args: "<place_path>", desc: "开始游戏（发送 F5）" },
+  game_stop: { fn: gameStop, args: "<place_path>", desc: "停止游戏（发送 Shift+F5）" },
+  game_pause: { fn: gamePause, args: "<place_path>", desc: "暂停/恢复游戏（发送 F12）" },
   // 日志
-  logs_get: logsGet,
-  logs_search: logsSearch,
-  logs_clean: logsClean,
-  logs_has_error: logsHasError,
-  logs_by_date: logsByDate,
+  logs_get: { fn: logsGet, args: "<place_path> [options]", desc: "获取过滤后的日志（仅用户脚本输出）", options: LOG_OPTIONS },
+  logs_search: { fn: logsSearch, args: "<place_path> <pattern> [options]", desc: "在日志中搜索匹配的条目", options: LOG_OPTIONS },
+  logs_clean: { fn: logsClean, args: "[days]", desc: "清理超过指定天数的旧日志文件（默认 7 天）" },
+  logs_has_error: { fn: logsHasError, args: "<place_path> [options]", desc: "检测指定范围内是否有错误输出", options: [...LOG_OPTIONS, "  --max-errors <n>    最多返回的错误数量（默认 100）"] },
+  logs_by_date: { fn: logsByDate, args: "<place_path> [options]", desc: "按日期范围获取日志", options: LOG_OPTIONS },
   // 工具栏
-  toolbar_state: toolbarState,
-  toolbar_state_debug: toolbarStateDebug,
+  toolbar_state: { fn: toolbarState, args: "<place_path>", desc: "检测工具栏按钮状态（播放、暂停、停止）" },
+  toolbar_state_debug: { fn: toolbarStateDebug, args: "<place_path> [--no-save]", desc: "带调试信息的工具栏状态检测" },
   // 截图
-  screenshot: screenshot,
-  screenshot_full: screenshotFull,
+  screenshot: { fn: screenshot, args: "<place_path> [filename]", desc: "截取 Studio 窗口截图" },
+  screenshot_full: { fn: screenshotFull, args: "<place_path> [filename]", desc: "截取完整截图（包含所有模态弹窗）" },
 };
 
 function printUsage() {
-  console.log(`Usage: cli.mjs <command> [place_path] [options]
+  console.log(`Usage: rspo <command> [place_path] [options]
+       rspo <command> -h    显示命令帮助
 
 Commands:
-  studio_help                     获取帮助文档
-  studio_list                     列出所有运行中的 Studio 实例
-  open <place_path>               打开 Studio
-  close <place_path>              关闭 Studio
-  studio_status <place_path>      获取状态
-  studio_query <place_path>       综合查询状态
+  Studio 管理:
+    studio_help                     获取帮助文档
+    studio_list                     列出所有运行中的 Studio 实例
+    open <place_path>               打开 Studio
+    close <place_path>              关闭 Studio
+    studio_status <place_path>      获取状态
+    studio_query <place_path>       综合查询状态
 
-  modal_detect <place_path>       检测模态弹窗
-  modal_close <place_path>        关闭所有模态弹窗
+  模态弹窗:
+    modal_detect <place_path>       检测模态弹窗
+    modal_close <place_path>        关闭所有模态弹窗
 
-  game_start <place_path>         开始游戏 (F5)
-  game_stop <place_path>          停止游戏 (Shift+F5)
-  game_pause <place_path>         暂停/恢复游戏 (F12)
+  游戏控制:
+    game_start <place_path>         开始游戏 (F5)
+    game_stop <place_path>          停止游戏 (Shift+F5)
+    game_pause <place_path>         暂停/恢复游戏 (F12)
 
-  logs_get <place_path>           获取日志
-  logs_search <place_path> <pattern>  搜索日志
-  logs_clean [days]               清理旧日志 (默认 7 天)
-  logs_has_error <place_path>     检测错误
-  logs_by_date <place_path>       按日期获取日志
+  日志分析:
+    logs_get <place_path>           获取日志
+    logs_search <place_path> <pattern>  搜索日志
+    logs_clean [days]               清理旧日志 (默认 7 天)
+    logs_has_error <place_path>     检测错误
+    logs_by_date <place_path>       按日期获取日志
 
-  toolbar_state <place_path>      检测工具栏状态
-  toolbar_state_debug <place_path>  带调试的工具栏检测
+  工具栏检测:
+    toolbar_state <place_path>      检测工具栏状态
+    toolbar_state_debug <place_path>  带调试的工具栏检测
 
-  screenshot <place_path>         截图
-  screenshot_full <place_path>    完整截图（含弹窗）
+  截图:
+    screenshot <place_path>         截图
+    screenshot_full <place_path>    完整截图（含弹窗）
+
+所有命令输出 JSON 格式。使用 "rspo <command> -h" 查看命令详情。
 `);
+}
+
+function printCommandHelp(command) {
+  const cmd = COMMANDS[command];
+  if (!cmd) {
+    console.log(`未知命令: ${command}`);
+    process.exit(1);
+  }
+
+  console.log(`Usage: rspo ${command} ${cmd.args}
+
+${cmd.desc}
+`);
+
+  if (cmd.options && cmd.options.length > 0) {
+    console.log("Options:");
+    for (const opt of cmd.options) {
+      console.log(opt);
+    }
+    console.log();
+  }
+
+  // 输出示例
+  const examples = getCommandExamples(command);
+  if (examples) {
+    console.log("Examples:");
+    console.log(examples);
+  }
+}
+
+function getCommandExamples(command) {
+  const exampleMap = {
+    open: '  rspo open "D:/project/game.rbxl"',
+    close: '  rspo close "D:/project/game.rbxl"',
+    studio_query: '  rspo studio_query "D:/project/game.rbxl"\n\n  Output: { "active": true, "ready": true, "pid": 12345, "hwnd": 67890, "has_modal": false }',
+    game_start: '  rspo game_start "D:/project/game.rbxl"',
+    game_stop: '  rspo game_stop "D:/project/game.rbxl"',
+    game_pause: '  rspo game_pause "D:/project/game.rbxl"',
+    modal_close: '  rspo modal_close "D:/project/game.rbxl"',
+    logs_get: '  rspo logs_get "D:/project/game.rbxl"\n  rspo logs_get "D:/project/game.rbxl" --after-line 100 --timestamps',
+    logs_search: '  rspo logs_search "D:/project/game.rbxl" "error"\n  rspo logs_search "D:/project/game.rbxl" "Score:" --context play',
+    logs_clean: '  rspo logs_clean\n  rspo logs_clean 14',
+    logs_has_error: '  rspo logs_has_error "D:/project/game.rbxl"\n  rspo logs_has_error "D:/project/game.rbxl" --after-line 100',
+    logs_by_date: '  rspo logs_by_date "D:/project/game.rbxl" --start-date "2024-01-01 00:00:00"',
+    toolbar_state: '  rspo toolbar_state "D:/project/game.rbxl"\n\n  Output: { "play": "enabled", "pause": "disabled", "stop": "disabled", "game_state": "stopped" }',
+    toolbar_state_debug: '  rspo toolbar_state_debug "D:/project/game.rbxl"',
+    screenshot: '  rspo screenshot "D:/project/game.rbxl"\n  rspo screenshot "D:/project/game.rbxl" my_screenshot.png',
+    screenshot_full: '  rspo screenshot_full "D:/project/game.rbxl"',
+  };
+  return exampleMap[command] || null;
 }
 
 async function main() {
@@ -465,29 +533,67 @@ async function main() {
   }
 
   const command = args[0];
-  const handler = COMMANDS[command];
+  const cmdInfo = COMMANDS[command];
 
-  if (!handler) {
+  if (!cmdInfo) {
     console.log(JSON.stringify({ error: `未知命令: ${command}` }));
     process.exit(1);
   }
 
+  // 检查命令级别的 -h
+  if (args.includes("-h") || args.includes("--help")) {
+    printCommandHelp(command);
+    process.exit(0);
+  }
+
+  const handler = cmdInfo.fn;
+
   try {
     let result;
+
+    // 解析选项参数
+    const options = parseOptions(args.slice(1));
 
     // 特殊处理不需要 place_path 的命令
     if (command === "studio_help" || command === "studio_list") {
       result = await handler();
     } else if (command === "logs_clean") {
-      const days = args[1] ? parseInt(args[1], 10) : 7;
+      const days = args[1] && !args[1].startsWith("-") ? parseInt(args[1], 10) : 7;
       result = await handler(days);
     } else if (command === "logs_search") {
       const placePath = args[1];
       const pattern = args[2] || "";
-      result = await handler(placePath, pattern);
+      if (!placePath || placePath.startsWith("-")) {
+        console.log(JSON.stringify({ error: "缺少 place_path 参数" }));
+        process.exit(1);
+      }
+      result = await handler(placePath, pattern, options);
+    } else if (command === "toolbar_state_debug") {
+      const placePath = args[1];
+      if (!placePath || placePath.startsWith("-")) {
+        console.log(JSON.stringify({ error: "缺少 place_path 参数" }));
+        process.exit(1);
+      }
+      const saveDebug = !args.includes("--no-save");
+      result = await handler(placePath, saveDebug);
+    } else if (command === "screenshot" || command === "screenshot_full") {
+      const placePath = args[1];
+      if (!placePath || placePath.startsWith("-")) {
+        console.log(JSON.stringify({ error: "缺少 place_path 参数" }));
+        process.exit(1);
+      }
+      const filename = args[2] && !args[2].startsWith("-") ? args[2] : null;
+      result = await handler(placePath, filename);
+    } else if (command.startsWith("logs_")) {
+      const placePath = args[1];
+      if (!placePath || placePath.startsWith("-")) {
+        console.log(JSON.stringify({ error: "缺少 place_path 参数" }));
+        process.exit(1);
+      }
+      result = await handler(placePath, options);
     } else {
       const placePath = args[1];
-      if (!placePath) {
+      if (!placePath || placePath.startsWith("-")) {
         console.log(JSON.stringify({ error: "缺少 place_path 参数" }));
         process.exit(1);
       }
@@ -499,6 +605,29 @@ async function main() {
     console.log(JSON.stringify({ error: e.message, stack: e.stack }));
     process.exit(1);
   }
+}
+
+function parseOptions(args) {
+  const options = {};
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--after-line" && args[i + 1]) {
+      options.after_line = parseInt(args[++i], 10);
+    } else if (arg === "--before-line" && args[i + 1]) {
+      options.before_line = parseInt(args[++i], 10);
+    } else if (arg === "--start-date" && args[i + 1]) {
+      options.start_date = args[++i];
+    } else if (arg === "--end-date" && args[i + 1]) {
+      options.end_date = args[++i];
+    } else if (arg === "--timestamps") {
+      options.timestamps = true;
+    } else if (arg === "--context" && args[i + 1]) {
+      options.context = args[++i];
+    } else if (arg === "--max-errors" && args[i + 1]) {
+      options.max_errors = parseInt(args[++i], 10);
+    }
+  }
+  return options;
 }
 
 main();

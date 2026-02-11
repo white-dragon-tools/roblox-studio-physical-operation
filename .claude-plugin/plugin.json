@@ -1,0 +1,9 @@
+{
+  "name": "roblox-studio-tools",
+  "version": "0.4.0",
+  "description": "Roblox Studio 控制技能 - 工具栏检测、游戏控制、日志分析",
+  "author": {
+    "name": "White Dragon Tools"
+  },
+  "keywords": ["roblox", "studio", "automation", "mcp"]
+}

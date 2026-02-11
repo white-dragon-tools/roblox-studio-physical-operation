@@ -5,6 +5,7 @@ import sharp from "sharp";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const TEMPLATE_DIR = join(__dirname, "..", "templates");
+const THEME_DIRS = ["dark", "light"]; // 优先尝试 dark 主题
 
 const { cv } = await import("opencv-wasm");
 
@@ -28,10 +29,24 @@ function rgbToHsv(r, g, b) {
 }
 
 async function loadTemplateGray(name) {
-  const p = join(TEMPLATE_DIR, `${name}.png`);
-  if (!existsSync(p)) return null;
-  const { data, info } = await sharp(p).grayscale().raw().toBuffer({ resolveWithObject: true });
-  return { data, width: info.width, height: info.height };
+  // 尝试从各主题目录加载模板，返回所有找到的模板
+  const templates = [];
+  
+  for (const theme of THEME_DIRS) {
+    const p = join(TEMPLATE_DIR, theme, `${name}.png`);
+    if (!existsSync(p)) continue;
+    const { data, info } = await sharp(p).grayscale().raw().toBuffer({ resolveWithObject: true });
+    templates.push({ data, width: info.width, height: info.height, theme });
+  }
+  
+  // 兼容旧目录结构（直接在 templates/ 下）
+  const legacyPath = join(TEMPLATE_DIR, `${name}.png`);
+  if (existsSync(legacyPath)) {
+    const { data, info } = await sharp(legacyPath).grayscale().raw().toBuffer({ resolveWithObject: true });
+    templates.push({ data, width: info.width, height: info.height, theme: "legacy" });
+  }
+  
+  return templates.length > 0 ? templates : null;
 }
 
 function bufferToMat(data, width, height, channels) {
@@ -51,6 +66,27 @@ function findButtonByTemplate(screenshotGray, template, threshold = 0.7) {
     return { x: minMax.maxLoc.x, y: minMax.maxLoc.y, confidence: minMax.maxVal };
   }
   return null;
+}
+
+// 从多个模板中找到最佳匹配
+function findBestMatch(screenshotGray, templates, threshold = 0.75) {
+  if (!templates || templates.length === 0) return null;
+  
+  let bestMatch = null;
+  let bestTemplate = null;
+  
+  for (const tpl of templates) {
+    const tplMat = bufferToMat(tpl.data, tpl.width, tpl.height, 1);
+    const match = findButtonByTemplate(screenshotGray, tplMat, threshold);
+    tplMat.delete();
+    
+    if (match && (!bestMatch || match.confidence > bestMatch.confidence)) {
+      bestMatch = match;
+      bestTemplate = tpl;
+    }
+  }
+  
+  return bestMatch ? { match: bestMatch, template: bestTemplate } : null;
 }
 
 function analyzeButtonColor(rgbData, imgWidth, x, y, w, h, buttonType = null) {
@@ -120,41 +156,89 @@ export async function detectToolbarState(captureResult) {
 
   const grayMat = bufferToMat(grayBuf, width, height, 1);
 
-  const playTpl = await loadTemplateGray("play");
-  const pauseTpl = await loadTemplateGray("pause");
-  const stopTpl = await loadTemplateGray("stop");
+  const playTpls = await loadTemplateGray("play");
+  const pauseTpls = await loadTemplateGray("pause");
+  const stopTpls = await loadTemplateGray("stop");
 
-  const buttons = [];
-  let playState = "unknown", pauseState = "unknown", stopState = "unknown";
-  let playColor = null, stopColor = null;
-
-  for (const [name, tpl, type] of [
-    ["play", playTpl, null],
-    ["pause", pauseTpl, "pause"],
-    ["stop", stopTpl, null],
-  ]) {
-    if (!tpl) continue;
-    const tplMat = bufferToMat(tpl.data, tpl.width, tpl.height, 1);
-    const match = findButtonByTemplate(grayMat, tplMat);
-    tplMat.delete();
-
-    if (match) {
-      const [state, color] = analyzeButtonColor(
-        rgbData, width, match.x, match.y, tpl.width, tpl.height, type,
-      );
-      buttons.push({
-        type: name,
-        x: match.x, y: match.y,
-        width: tpl.width, height: tpl.height,
-        state, colorType: color, confidence: match.confidence,
-      });
-      if (name === "play") { playState = state; playColor = color; }
-      if (name === "pause") { pauseState = state; }
-      if (name === "stop") { stopState = state; stopColor = color; }
+  // 按主题分组匹配，选择最佳主题
+  const themeResults = {};
+  
+  for (const theme of [...THEME_DIRS, "legacy"]) {
+    const buttons = [];
+    
+    for (const [name, tpls, type] of [
+      ["play", playTpls, null],
+      ["pause", pauseTpls, "pause"],
+      ["stop", stopTpls, null],
+    ]) {
+      if (!tpls) continue;
+      
+      // 只使用当前主题的模板
+      const themeTpls = tpls.filter(t => t.theme === theme);
+      if (themeTpls.length === 0) continue;
+      
+      const result = findBestMatch(grayMat, themeTpls);
+      if (result) {
+        const { match, template } = result;
+        const [state, color] = analyzeButtonColor(
+          rgbData, width, match.x, match.y, template.width, template.height, type,
+        );
+        buttons.push({
+          type: name,
+          x: match.x, y: match.y,
+          width: template.width, height: template.height,
+          state, colorType: color, confidence: match.confidence,
+          theme: template.theme,
+        });
+      }
+    }
+    
+    if (buttons.length > 0) {
+      // 计算主题得分：匹配数量 + 平均置信度 + 位置一致性
+      const avgConfidence = buttons.reduce((s, b) => s + b.confidence, 0) / buttons.length;
+      const yValues = buttons.map(b => b.y);
+      const yConsistency = yValues.length > 1 ? 
+        (Math.max(...yValues) - Math.min(...yValues) < 50 ? 0.2 : 0) : 0.1;
+      
+      themeResults[theme] = {
+        buttons,
+        score: buttons.length * 0.3 + avgConfidence + yConsistency,
+      };
     }
   }
 
   grayMat.delete();
+
+  // 选择得分最高的主题
+  let bestTheme = null;
+  let bestScore = 0;
+  for (const [theme, result] of Object.entries(themeResults)) {
+    if (result.score > bestScore) {
+      bestScore = result.score;
+      bestTheme = theme;
+    }
+  }
+
+  if (!bestTheme) {
+    return {
+      play: "unknown",
+      pause: "unknown",
+      stop: "unknown",
+      gameState: "stopped",
+      buttons: [],
+      theme: null,
+    };
+  }
+
+  const buttons = themeResults[bestTheme].buttons;
+  let playState = "unknown", pauseState = "unknown", stopState = "unknown";
+  let playColor = null, stopColor = null;
+
+  for (const btn of buttons) {
+    if (btn.type === "play") { playState = btn.state; playColor = btn.colorType; }
+    if (btn.type === "pause") { pauseState = btn.state; }
+    if (btn.type === "stop") { stopState = btn.state; stopColor = btn.colorType; }
+  }
 
   const gameState = inferGameState(playState, pauseState, stopState, playColor, stopColor);
 
@@ -164,6 +248,7 @@ export async function detectToolbarState(captureResult) {
     stop: stopState,
     gameState,
     buttons,
+    theme: bestTheme,
   };
 }
 
