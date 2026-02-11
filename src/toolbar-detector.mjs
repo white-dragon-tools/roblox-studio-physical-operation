@@ -69,7 +69,7 @@ function findButtonByTemplate(screenshotGray, template, threshold = 0.6) {
 }
 
 // 从多个模板中找到最佳匹配
-function findBestMatch(screenshotGray, templates, threshold = 0.75) {
+function findBestMatch(screenshotGray, templates, threshold = 0.55) {
   if (!templates || templates.length === 0) return null;
   
   let bestMatch = null;
@@ -137,10 +137,11 @@ function analyzeButtonColor(rgbData, imgWidth, x, y, w, h, buttonType = null) {
 function inferGameState(play, pause, stop, playColor, stopColor) {
   if (pause === "enabled") return "running";
   if (pause === "disabled") return "stopped";
+  // play 红色优先判断 running（比 stop disabled 更可靠）
+  if (play === "enabled" && playColor === "red") return "running";
+  if (play === "enabled" && playColor === "green") return "stopped";
   if (stop === "enabled" && stopColor === "red") return "running";
   if (stop === "disabled") return "stopped";
-  if (play === "enabled" && playColor === "green") return "stopped";
-  if (play === "enabled" && playColor === "red") return "running";
   return "stopped";
 }
 
