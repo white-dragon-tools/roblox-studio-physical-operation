@@ -7,44 +7,95 @@ Cross-platform: Windows + macOS.
 ## Install
 
 ```bash
-npm install @white-dragon-tools/roblox-studio-physical-operation-tools
+npm install @white-dragon-tools/roblox-studio-physical-operation
 ```
 
 ## Usage
 
 ```bash
-node src/cli.mjs <command> <place_path>
+rspo <command> [place_path] [options]
+rspo <command> -h    # Show command help
 ```
 
 All commands output JSON to stdout.
 
 ### Commands
 
+#### Studio Management
+
 | Command | Description |
 |---------|-------------|
+| `studio_help` | Show help documentation |
+| `studio_list` | List all running Studio instances |
 | `open` | Open Studio with a .rbxl file |
 | `close` | Close Studio (taskkill/kill) |
+| `studio_status` | Get basic status |
+| `studio_query` | Query Studio status (process, window, modals) |
+
+#### Modal Dialog Control
+
+| Command | Description |
+|---------|-------------|
+| `modal_detect` | Detect modal dialogs |
 | `modal_close` | Close all modal dialogs |
+
+#### Game Control
+
+| Command | Description |
+|---------|-------------|
 | `game_start` | Start game (F5) |
 | `game_stop` | Stop game (Shift+F5) |
+| `game_pause` | Pause/resume game (F12) |
+
+#### Log Analysis
+
+| Command | Description |
+|---------|-------------|
 | `logs_get` | Get filtered logs (user script output only) |
+| `logs_search` | Search logs with pattern |
+| `logs_clean` | Clean old log files (default: 7 days) |
+| `logs_has_error` | Detect errors in logs |
+| `logs_by_date` | Get logs by date range |
+
+Log options: `--after-line`, `--before-line`, `--start-date`, `--end-date`, `--timestamps`, `--context`
+
+#### Toolbar Detection
+
+| Command | Description |
+|---------|-------------|
 | `toolbar_state` | Detect toolbar button state via template matching |
-| `studio_query` | Query Studio status (process, window, modals) |
+| `toolbar_state_debug` | Toolbar detection with debug image |
+
+#### Screenshot
+
+| Command | Description |
+|---------|-------------|
+| `screenshot` | Capture Studio window |
+| `screenshot_full` | Capture window with all modal dialogs |
 
 ### Examples
 
 ```bash
 # Query Studio status
-node src/cli.mjs studio_query "D:/project/game.rbxl"
+rspo studio_query "D:/project/game.rbxl"
 
 # Start game
-node src/cli.mjs game_start "D:/project/game.rbxl"
+rspo game_start "D:/project/game.rbxl"
 
 # Get logs
-node src/cli.mjs logs_get "D:/project/game.rbxl"
+rspo logs_get "D:/project/game.rbxl"
+
+# Get logs with options
+rspo logs_get "D:/project/game.rbxl" --after-line 100 --timestamps
+
+# Search logs
+rspo logs_search "D:/project/game.rbxl" "error"
 
 # Detect toolbar state (running/stopped)
-node src/cli.mjs toolbar_state "D:/project/game.rbxl"
+rspo toolbar_state "D:/project/game.rbxl"
+
+# Get command help
+rspo logs_get -h
 ```
 
 ### Output Examples
