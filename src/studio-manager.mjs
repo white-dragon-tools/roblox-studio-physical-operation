@@ -204,7 +204,9 @@ export async function getSession(placePath = null, placeId = null) {
   return [false, `Place ID ${placeId} session not found`, null];
 }
 
-export async function openPlace(placePath) {
+export async function openPlace(placePath, options = {}) {
+  const { injectLocalPath: shouldInject = false } = options;
+
   if (!existsSync(placePath)) return [false, `Place file not found: ${placePath}`];
 
   const existing = await findSessionByPlacePath(placePath);
@@ -215,12 +217,23 @@ export async function openPlace(placePath) {
   if (!studioPath) return [false, "Cannot find Roblox Studio path"];
   if (!existsSync(studioPath)) return [false, `Roblox Studio not found: ${studioPath}`];
 
+  // 如果需要注入 LocalPlacePath，创建临时文件
+  let actualPath = placePath;
+  if (shouldInject) {
+    try {
+      const { injectLocalPath } = await import("./lune-manager.mjs");
+      actualPath = await injectLocalPath(placePath);
+    } catch (e) {
+      return [false, `Failed to inject LocalPlacePath: ${e.message}`];
+    }
+  }
+
   try {
     let child;
     if (process.platform === "darwin") {
-      child = spawn("open", ["-a", studioPath, placePath], { detached: true, stdio: "ignore" });
+      child = spawn("open", ["-a", studioPath, actualPath], { detached: true, stdio: "ignore" });
     } else {
-      child = spawn(studioPath, [placePath], { detached: true, stdio: "ignore" });
+      child = spawn(studioPath, [actualPath], { detached: true, stdio: "ignore" });
     }
     child.unref();
     const pid = child.pid;
@@ -234,7 +247,13 @@ export async function openPlace(placePath) {
     }
 
     if (!hwnd) return [false, `Studio started (PID: ${pid}), but window not found`];
-    return [true, `Studio started (PID: ${pid}, HWND: ${hwnd})`];
+    
+    const result = { pid, hwnd };
+    if (shouldInject) {
+      result.injectedPath = actualPath;
+      result.originalPath = placePath;
+    }
+    return [true, `Studio started (PID: ${pid}, HWND: ${hwnd})`, result];
   } catch (e) {
     return [false, `Failed to start Studio: ${e.message}`];
   }

@@ -87,12 +87,18 @@ async function studioList() {
   return instances;
 }
 
-async function studioOpen(placePath) {
+async function studioOpen(placePath, options = {}) {
   const sm = await getStudioManager();
-  const [success, message] = await sm.openPlace(placePath);
+  const [success, message, result] = await sm.openPlace(placePath, options);
   const pidMatch = message.match(/PID:\s*(\d+)/);
   const pid = pidMatch ? parseInt(pidMatch[1], 10) : null;
-  return { success, message, pid };
+  
+  const response = { success, message, pid };
+  if (result?.injectedPath) {
+    response.injected_path = result.injectedPath;
+    response.original_path = result.originalPath;
+  }
+  return response;
 }
 
 async function studioClose(placePath) {
@@ -393,6 +399,29 @@ async function screenshotFull(placePath, filename = null) {
   return { error: "截图失败" };
 }
 
+// ============ 文件操作 ============
+
+async function injectLocalPathCmd(placePath) {
+  const { resolve } = await import("node:path");
+  const absolutePath = resolve(placePath);
+
+  if (!existsSync(absolutePath)) {
+    return { success: false, error: `文件不存在: ${absolutePath}` };
+  }
+
+  try {
+    const { injectLocalPath } = await import("./lune-manager.mjs");
+    const outputPath = await injectLocalPath(absolutePath);
+    return { 
+      success: true, 
+      original_path: absolutePath,
+      output_path: outputPath,
+    };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
 // ============ 命令映射 ============
 
 const COMMANDS = {
@@ -422,6 +451,8 @@ const COMMANDS = {
   // 截图
   screenshot: screenshot,
   screenshot_full: screenshotFull,
+  // 文件操作
+  inject: injectLocalPathCmd,
 };
 
 function printUsage() {
@@ -430,7 +461,7 @@ function printUsage() {
 Commands:
   studio_help                     获取帮助文档
   studio_list                     列出所有运行中的 Studio 实例
-  open <place_path>               打开 Studio
+  open <place_path> [--inject]    打开 Studio (--inject: 注入 LocalPlacePath)
   close <place_path>              关闭 Studio
   studio_status <place_path>      获取状态
   studio_query <place_path>       综合查询状态
@@ -453,6 +484,8 @@ Commands:
 
   screenshot <place_path>         截图
   screenshot_full <place_path>    完整截图（含弹窗）
+
+  inject <place_path>             注入 LocalPlacePath 属性到临时文件
 `);
 }
 
@@ -485,6 +518,14 @@ async function main() {
       const placePath = args[1];
       const pattern = args[2] || "";
       result = await handler(placePath, pattern);
+    } else if (command === "open") {
+      const placePath = args[1];
+      if (!placePath) {
+        console.log(JSON.stringify({ error: "缺少 place_path 参数" }));
+        process.exit(1);
+      }
+      const injectFlag = args.includes("--inject");
+      result = await handler(placePath, { injectLocalPath: injectFlag });
     } else {
       const placePath = args[1];
       if (!placePath) {
