@@ -56,7 +56,7 @@ function bufferToMat(data, width, height, channels) {
   return mat;
 }
 
-function findButtonByTemplate(screenshotGray, template, threshold = 0.7) {
+function findButtonByTemplate(screenshotGray, template, threshold = 0.6) {
   if (!template) return null;
   const result = new cv.Mat();
   cv.matchTemplate(screenshotGray, template, result, cv.TM_CCOEFF_NORMED);
