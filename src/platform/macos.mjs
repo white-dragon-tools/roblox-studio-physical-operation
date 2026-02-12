@@ -24,6 +24,7 @@ const MODIFIER_VKS = new Set([0x10]); // VK_SHIFT
 
 const cg = koffi.load("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics");
 const cf = koffi.load("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation");
+const axLib = koffi.load("/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices");
 
 // CoreFoundation
 const CFRelease = cf.func("void CFRelease(void* cf)");
@@ -33,6 +34,14 @@ const CFDictionaryGetValue = cf.func("void* CFDictionaryGetValue(void* theDict, 
 const CFStringCreateWithCString = cf.func("void* CFStringCreateWithCString(void* alloc, const char* cStr, uint32_t encoding)");
 const CFNumberGetValue = cf.func("bool CFNumberGetValue(void* number, int theType, _Out_ int64_t* valuePtr)");
 const CFStringGetCString = cf.func("bool CFStringGetCString(void* theString, _Out_ uint8_t* buffer, long bufferSize, uint32_t encoding)");
+const CFBooleanGetValue = cf.func("bool CFBooleanGetValue(void* boolean)");
+
+// Accessibility API
+const AXUIElementCreateApplication = axLib.func("void* AXUIElementCreateApplication(int pid)");
+const AXUIElementCopyAttributeValue = axLib.func("int AXUIElementCopyAttributeValue(void* element, void* attribute, _Out_ void** value)");
+const AXValueGetValue = axLib.func("bool AXValueGetValue(void* value, int valueType, _Out_ double* valuePtr)");
+const kAXValueCGPointType = 1;
+const kAXValueCGSizeType = 2;
 
 // CoreGraphics - window list
 const CGWindowListCopyWindowInfo = cg.func("void* CGWindowListCopyWindowInfo(uint32_t option, uint32_t relativeToWindow)");
@@ -85,6 +94,86 @@ function cfGetRect(dict, key) {
   const ok = CGRectMakeWithDictionaryRepresentation(val, rect);
   if (!ok) return null;
   return { x: rect[0], y: rect[1], w: rect[2], h: rect[3] };
+}
+
+// --- Accessibility API helpers ---
+
+function axGetAttr(el, name) {
+  const out = [null];
+  const err = AXUIElementCopyAttributeValue(el, CFStringCreateWithCString(null, name, kCFStringEncodingUTF8), out);
+  return err === 0 ? out[0] : null;
+}
+
+function axGetString(el, name) {
+  const val = axGetAttr(el, name);
+  if (!val) return null;
+  const buf = Buffer.alloc(1024);
+  if (!CFStringGetCString(val, buf, 1024, kCFStringEncodingUTF8)) return null;
+  return buf.subarray(0, buf.indexOf(0)).toString("utf-8");
+}
+
+function axGetSize(el) {
+  const v = axGetAttr(el, "AXSize");
+  if (!v) return null;
+  const buf = new Float64Array(2);
+  if (!AXValueGetValue(v, kAXValueCGSizeType, buf)) return null;
+  return { w: buf[0], h: buf[1] };
+}
+
+function axGetPosition(el) {
+  const v = axGetAttr(el, "AXPosition");
+  if (!v) return null;
+  const buf = new Float64Array(2);
+  if (!AXValueGetValue(v, kAXValueCGPointType, buf)) return null;
+  return { x: buf[0], y: buf[1] };
+}
+
+function axGetBool(el, name) {
+  const val = axGetAttr(el, name);
+  if (!val) return false;
+  return CFBooleanGetValue(val);
+}
+
+// Query AX windows for a given PID
+function getAXWindows(pid) {
+  try {
+    const app = AXUIElementCreateApplication(pid);
+    let windowsRef = axGetAttr(app, "AXWindows");
+
+    // AX may return empty if app is not frontmost
+    if (windowsRef && CFArrayGetCount(windowsRef) === 0) {
+      activateApp(pid);
+      const end = Date.now() + 500;
+      while (Date.now() < end) {}
+      windowsRef = axGetAttr(app, "AXWindows");
+    }
+    if (!windowsRef) return [];
+
+    const count = CFArrayGetCount(windowsRef);
+    const windows = [];
+    for (let i = 0; i < count; i++) {
+      const win = CFArrayGetValueAtIndex(windowsRef, i);
+      const role = axGetString(win, "AXRole");
+      const subrole = axGetString(win, "AXSubrole");
+      const title = axGetString(win, "AXTitle") || "";
+      const isModal = axGetBool(win, "AXModal");
+      const size = axGetSize(win);
+      const pos = axGetPosition(win);
+      windows.push({
+        role,
+        subrole,
+        title,
+        isModal,
+        width: size ? size.w : 0,
+        height: size ? size.h : 0,
+        x: pos ? pos.x : 0,
+        y: pos ? pos.y : 0,
+      });
+    }
+    return windows;
+  } catch {
+    return [];
+  }
 }
 
 // --- Public API ---
@@ -309,6 +398,21 @@ export function captureWindowWithModals(mainWindowId, pid, outputPath) {
 }
 
 export function getModalWindows(mainWindowId, pid) {
+  const axWindows = getAXWindows(pid);
+  if (axWindows.length > 0) {
+    return axWindows
+      .filter((w) => w.subrole === "AXDialog" || w.isModal)
+      .map((w) => ({
+        hwnd: null,
+        title: w.title,
+        rect: [w.x, w.y, w.x + w.width, w.y + w.height],
+        width: w.width,
+        height: w.height,
+        isModal: w.isModal,
+        subrole: w.subrole,
+      }));
+  }
+  // Fallback to CGWindowList if AX unavailable
   const all = findAllWindowsByPid(pid);
   return all.filter((w) => w.hwnd !== mainWindowId && w.width > 50 && w.height > 50);
 }
