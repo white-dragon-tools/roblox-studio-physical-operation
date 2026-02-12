@@ -13,7 +13,7 @@ async function getPlatformModule() {
   return _platform;
 }
 
-function loadLogIndex() {
+export function loadLogIndex() {
   if (!existsSync(LOG_INDEX_PATH)) return {};
   try {
     return JSON.parse(readFileSync(LOG_INDEX_PATH, "utf-8"));
@@ -22,13 +22,13 @@ function loadLogIndex() {
   }
 }
 
-function saveLogIndex(index) {
+export function saveLogIndex(index) {
   try {
     writeFileSync(LOG_INDEX_PATH, JSON.stringify(index, null, 2), "utf-8");
   } catch {}
 }
 
-function getLogCommandLineRaw(logPath) {
+export function getLogCommandLineRaw(logPath) {
   try {
     const content = readFileSync(logPath, { encoding: "utf-8" });
     const lines = content.split("\n");
@@ -47,7 +47,7 @@ function getLogCommandLineRaw(logPath) {
   return null;
 }
 
-function getLogPlacePathRaw(logPath) {
+export function getLogPlacePathRaw(logPath) {
   try {
     const content = readFileSync(logPath, { encoding: "utf-8" });
     const lines = content.split("\n");

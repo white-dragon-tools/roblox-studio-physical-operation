@@ -17,6 +17,8 @@
   },
   "scripts": {
     "test": "vitest run",
+    "test:native": "vitest run --config vitest.native.config.mjs",
+    "test:all": "vitest run --config vitest.all.config.mjs",
     "test:watch": "vitest"
   },
   "keywords": [
