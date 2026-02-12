@@ -93,6 +93,7 @@ function analyzeButtonColor(rgbData, imgWidth, x, y, w, h, buttonType = null) {
   const COLOR_THRESHOLD = 50;
   let redCount = 0, greenCount = 0, blueCount = 0;
   let darkPixelCount = 0, totalDarkBrightness = 0;
+  let brightPixelCount = 0;
   let total = 0;
 
   for (let dy = 0; dy < h; dy++) {
@@ -111,6 +112,9 @@ function analyzeButtonColor(rgbData, imgWidth, x, y, w, h, buttonType = null) {
         darkPixelCount++;
         totalDarkBrightness += brightness;
       }
+      if (brightness > 120) {
+        brightPixelCount++;
+      }
 
       if (sat > COLOR_THRESHOLD && val > 30) {
         if (hue <= 30 || hue >= 330) redCount++;
@@ -124,11 +128,24 @@ function analyzeButtonColor(rgbData, imgWidth, x, y, w, h, buttonType = null) {
 
   if (buttonType === "pause" && darkPixelCount > 0) {
     const avgDark = totalDarkBrightness / darkPixelCount;
-    return avgDark < 120 ? ["enabled", "dark"] : ["disabled", "light"];
+    const brightRatio = brightPixelCount / total;
+    // Windows light theme: stopped avgDark ~154, running avgDark ~53
+    if (avgDark > 120) return ["disabled", "light"];
+    // Mac dark theme: running brightRatio ~0.275, stopped ~0.167
+    if (brightRatio > 0.22) return ["enabled", "dark"];
+    // Low brightRatio + low avgDark = dark theme disabled
+    return ["disabled", "dark"];
   }
 
   const minRatio = 0.03;
-  if (redCount > total * minRatio) return ["enabled", "red"];
+  if (redCount > total * minRatio) {
+    // For stop button in Mac dark theme, distinguish bright red (enabled) from dim red (disabled)
+    if (buttonType === "stop" && darkPixelCount > 0) {
+      const avgDark = totalDarkBrightness / darkPixelCount;
+      if (avgDark < 50) return ["disabled", "red"];
+    }
+    return ["enabled", "red"];
+  }
   if (greenCount > total * minRatio) return ["enabled", "green"];
   if (blueCount > total * minRatio) return ["enabled", "blue"];
   return ["disabled", "gray"];
