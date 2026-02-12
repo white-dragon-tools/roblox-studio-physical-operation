@@ -1,7 +1,7 @@
 ---
 name: Roblox Studio Control
 description: This skill should be used when the user asks to "control Roblox Studio", "start/stop game in Studio", "get Studio logs", "detect toolbar state", "take Studio screenshot", "close modal dialogs", or needs to automate Roblox Studio operations via CLI.
-version: 0.4.0
+version: 0.5.0
 ---
 
 # Roblox Studio Physical Operation
@@ -24,37 +24,32 @@ All commands output JSON to stdout. Use `-h` or `--help` for help.
 
 | Command | Description | Arguments |
 |---------|-------------|-----------|
-| `studio_help` | Show help documentation | - |
-| `studio_list` | List all running Studio instances | - |
+| `list` | List all running Studio instances | - |
 | `open` | Open Studio with a .rbxl file | `<place_path>` |
 | `close` | Close Studio instance | `<place_path>` |
-| `studio_status` | Get basic status | `<place_path>` |
-| `studio_query` | Query full status (process, window, modals) | `<place_path>` |
+| `status` | Get full status (process, window, modals, log path) | `<place_path>` |
 
 ### Modal Dialog Control
 
 | Command | Description | Arguments |
 |---------|-------------|-----------|
-| `modal_detect` | Detect modal dialogs | `<place_path>` |
-| `modal_close` | Close all modal dialogs | `<place_path>` |
+| `modal` | Detect modal dialogs | `<place_path>` |
+| `modal --close` | Close all modal dialogs | `<place_path>` |
 
 ### Game Control
 
 | Command | Description | Arguments |
 |---------|-------------|-----------|
-| `game_start` | Start game (sends F5) | `<place_path>` |
-| `game_stop` | Stop game (sends Shift+F5) | `<place_path>` |
-| `game_pause` | Pause/resume game (sends F12) | `<place_path>` |
+| `game start` | Start game (sends F5) | `<place_path>` |
+| `game stop` | Stop game (sends Shift+F5) | `<place_path>` |
+| `game pause` | Pause/resume game (sends F12) | `<place_path>` |
 
 ### Log Analysis
 
 | Command | Description | Arguments |
 |---------|-------------|-----------|
-| `logs_get` | Get filtered logs (user script output only) | `<place_path> [options]` |
-| `logs_search` | Search logs with pattern | `<place_path> <pattern> [options]` |
-| `logs_clean` | Clean old log files | `[days]` (default: 7) |
-| `logs_has_error` | Detect errors in logs | `<place_path> [options]` |
-| `logs_by_date` | Get logs by date range | `<place_path> [options]` |
+| `log` | Get filtered logs (user script output only) | `<place_path> [options]` |
+| `log --errors` | Detect errors in logs | `<place_path> [options]` |
 
 Log options: `--after-line`, `--before-line`, `--start-date`, `--end-date`, `--timestamps`, `--context`
 
@@ -62,19 +57,20 @@ Log options: `--after-line`, `--before-line`, `--start-date`, `--end-date`, `--t
 
 | Command | Description | Arguments |
 |---------|-------------|-----------|
-| `toolbar_state` | Detect toolbar button state via template matching | `<place_path>` |
-| `toolbar_state_debug` | Toolbar detection with debug image | `<place_path>` |
+| `toolbar` | Detect toolbar button state via template matching | `<place_path>` |
+| `toolbar --debug` | Toolbar detection with debug image | `<place_path>` |
 
 ### Screenshot
 
 | Command | Description | Arguments |
 |---------|-------------|-----------|
 | `screenshot` | Capture Studio window | `<place_path> [filename]` |
-| `screenshot_full` | Capture window with all modal dialogs | `<place_path> [filename]` |
+| `screenshot --full` | Capture window with all modal dialogs | `<place_path> [filename]` |
+| `screenshot --viewport` | Capture game viewport only (macOS only) | `<place_path>` |
 
 ## Output Examples
 
-### studio_query
+### status
 
 ```json
 {
@@ -82,13 +78,15 @@ Log options: `--after-line`, `--before-line`, `--start-date`, `--end-date`, `--t
   "ready": true,
   "pid": 12345,
   "hwnd": 67890,
+  "log_path": "/path/to/studio.log",
+  "log_last_line": 2330,
   "has_modal": false,
   "modal_count": 0,
   "modals": []
 }
 ```
 
-### toolbar_state
+### toolbar
 
 ```json
 {
@@ -101,7 +99,7 @@ Log options: `--after-line`, `--before-line`, `--start-date`, `--end-date`, `--t
 
 `game_state` values: `stopped`, `running`, `paused`
 
-### logs_get
+### log
 
 ```json
 {
@@ -121,32 +119,32 @@ Log context labels: `[P]` = Play (game running), `[E]` = Edit mode
 
 ```bash
 # 1. Query status first
-rspo studio_query "D:/project/game.rbxl"
+rspo status "D:/project/game.rbxl"
 
 # 2. Close any modal dialogs
-rspo modal_close "D:/project/game.rbxl"
+rspo modal "D:/project/game.rbxl" --close
 
 # 3. Start game
-rspo game_start "D:/project/game.rbxl"
+rspo game start "D:/project/game.rbxl"
 
 # 4. Wait and check toolbar state
-rspo toolbar_state "D:/project/game.rbxl"
+rspo toolbar "D:/project/game.rbxl"
 
 # 5. Get logs
-rspo logs_get "D:/project/game.rbxl"
+rspo log "D:/project/game.rbxl"
 
 # 6. Check for errors
-rspo logs_has_error "D:/project/game.rbxl"
+rspo log "D:/project/game.rbxl" --errors
 
 # 7. Stop game
-rspo game_stop "D:/project/game.rbxl"
+rspo game stop "D:/project/game.rbxl"
 ```
 
 ### Debug Toolbar Detection
 
 ```bash
 # Get debug image for troubleshooting
-rspo toolbar_state_debug "D:/project/game.rbxl"
+rspo toolbar "D:/project/game.rbxl" --debug
 ```
 
 ## Platform Notes
@@ -158,7 +156,7 @@ rspo toolbar_state_debug "D:/project/game.rbxl"
 
 ### macOS
 - Process finding: `pgrep` + `ps`
-- Window management: AppleScript + Quartz
+- Window management: CoreGraphics + Accessibility API via koffi
 - Log directory: `~/Library/Logs/Roblox`
 - Requires: Screen Recording + Accessibility permissions
 

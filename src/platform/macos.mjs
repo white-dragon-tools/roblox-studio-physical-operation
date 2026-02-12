@@ -50,6 +50,7 @@ const CGRectMakeWithDictionaryRepresentation = cg.func("bool CGRectMakeWithDicti
 // CoreGraphics - keyboard events
 const CGEventCreateKeyboardEvent = cg.func("void* CGEventCreateKeyboardEvent(void* source, uint16_t virtualKey, bool keyDown)");
 const CGEventPost = cg.func("void CGEventPost(uint32_t tap, void* event)");
+const CGEventPostToPid = cg.func("int CGEventPostToPid(int pid, void* event)");
 const CGEventSetFlags = cg.func("void CGEventSetFlags(void* event, uint64_t flags)");
 
 // Constants
@@ -176,6 +177,109 @@ function getAXWindows(pid) {
   }
 }
 
+// Find the game viewport rect via AX tree
+// Logic: find AXGroup tab with place filename as title, next sibling is the viewport
+function getViewportRect(pid, placePath) {
+  try {
+    const app = AXUIElementCreateApplication(pid);
+    let windowsRef = axGetAttr(app, "AXWindows");
+    if (windowsRef && CFArrayGetCount(windowsRef) === 0) {
+      activateApp(pid);
+      const end = Date.now() + 500;
+      while (Date.now() < end) {}
+      windowsRef = axGetAttr(app, "AXWindows");
+    }
+    if (!windowsRef) return null;
+
+    const placeFilename = placePath ? path.basename(placePath).replace(/\.rbxl[x]?$/i, "") + ".rbxl" : null;
+    const count = CFArrayGetCount(windowsRef);
+
+    for (let i = 0; i < count; i++) {
+      const win = CFArrayGetValueAtIndex(windowsRef, i);
+      const subrole = axGetString(win, "AXSubrole");
+      if (subrole !== "AXStandardWindow") continue;
+
+      const children = axGetAttr(win, "AXChildren");
+      if (!children) continue;
+      const n = CFArrayGetCount(children);
+
+      for (let j = 0; j < n - 1; j++) {
+        const child = CFArrayGetValueAtIndex(children, j);
+        const title = axGetString(child, "AXTitle");
+        if (!title) continue;
+
+        const isMatch = placeFilename
+          ? title === placeFilename
+          : title.endsWith(".rbxl");
+        if (!isMatch) continue;
+
+        // Next sibling is the viewport container
+        const viewport = CFArrayGetValueAtIndex(children, j + 1);
+        const role = axGetString(viewport, "AXRole");
+        if (role !== "AXGroup") continue;
+
+        const size = axGetSize(viewport);
+        const pos = axGetPosition(viewport);
+        if (!size || !pos) continue;
+
+        return { x: pos.x, y: pos.y, width: size.w, height: size.h };
+      }
+    }
+  } catch {}
+  return null;
+}
+
+// Capture the game viewport from the main window screenshot (Mac only)
+export async function captureViewport(windowId, pid, placePath) {
+  const rect = getViewportRect(pid, placePath);
+  if (!rect) return null;
+
+  const tmpPath = path.join(os.tmpdir(), `roblox_capture_${Date.now()}.png`);
+  if (!captureWindow(windowId, tmpPath)) return null;
+
+  try {
+    const sharpMod = (await import("sharp")).default;
+    // screencapture produces Retina 2x images, get actual pixel dimensions
+    const meta = await sharpMod(tmpPath).metadata();
+    const scaleX = meta.width / (await getWindowLogicalWidth(windowId, pid));
+    const scaleY = scaleX; // uniform scaling on Mac
+
+    // Viewport position is in screen coords, window position is also in screen coords
+    const winPos = getWindowPosition(windowId, pid);
+    if (!winPos) { (await import("node:fs")).unlinkSync(tmpPath); return null; }
+
+    const cropX = Math.round((rect.x - winPos.x) * scaleX);
+    const cropY = Math.round((rect.y - winPos.y) * scaleY);
+    const cropW = Math.round(rect.width * scaleX);
+    const cropH = Math.round(rect.height * scaleY);
+
+    const { data, info } = await sharpMod(tmpPath)
+      .extract({ left: cropX, top: cropY, width: cropW, height: cropH })
+      .removeAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    (await import("node:fs")).unlinkSync(tmpPath);
+    return { data, width: info.width, height: info.height };
+  } catch {
+    try { (await import("node:fs")).unlinkSync(tmpPath); } catch {}
+    return null;
+  }
+}
+
+function getWindowPosition(windowId, pid) {
+  const windows = getWindowList();
+  const w = windows.find((w) => w.wid === windowId);
+  if (!w) return null;
+  return { x: w.x, y: w.y };
+}
+
+function getWindowLogicalWidth(windowId, pid) {
+  const windows = getWindowList();
+  const w = windows.find((w) => w.wid === windowId);
+  return w ? w.w : 0;
+}
+
 // --- Public API ---
 
 export function getStudioPath() {
@@ -285,7 +389,7 @@ function activateApp(pid) {
   `);
 }
 
-function sendKeyEvent(macKeycode, modifiers = []) {
+function sendKeyEvent(macKeycode, modifiers = [], pid = null) {
   try {
     const eDown = CGEventCreateKeyboardEvent(null, macKeycode, true);
     const eUp = CGEventCreateKeyboardEvent(null, macKeycode, false);
@@ -296,11 +400,17 @@ function sendKeyEvent(macKeycode, modifiers = []) {
       CGEventSetFlags(eUp, kCGEventFlagMaskShift);
     }
 
-    CGEventPost(kCGHIDEventTap, eDown);
-    // Small delay between key down and up
-    const end = Date.now() + 50;
-    while (Date.now() < end) {}
-    CGEventPost(kCGHIDEventTap, eUp);
+    if (pid) {
+      CGEventPostToPid(pid, eDown);
+      const end = Date.now() + 50;
+      while (Date.now() < end) {}
+      CGEventPostToPid(pid, eUp);
+    } else {
+      CGEventPost(kCGHIDEventTap, eDown);
+      const end = Date.now() + 50;
+      while (Date.now() < end) {}
+      CGEventPost(kCGHIDEventTap, eUp);
+    }
 
     CFRelease(eDown);
     CFRelease(eUp);
@@ -328,19 +438,22 @@ export function sendKeyCombo(vkCodes) {
 export function sendKeyToWindow(windowId, vkCode) {
   const windows = getWindowList();
   const w = windows.find((w) => w.wid === windowId);
-  if (w) activateApp(w.pid);
-  const end = Date.now() + 200;
-  while (Date.now() < end) {}
-  return sendKey(vkCode);
+  if (!w) return false;
+  const mac = VK_TO_MAC[vkCode];
+  if (mac === undefined) return false;
+  return sendKeyEvent(mac, [], w.pid);
 }
 
 export function sendKeyComboToWindow(windowId, vkCodes) {
   const windows = getWindowList();
   const w = windows.find((w) => w.wid === windowId);
-  if (w) activateApp(w.pid);
-  const end = Date.now() + 200;
-  while (Date.now() < end) {}
-  return sendKeyCombo(vkCodes);
+  if (!w) return false;
+  const modifiers = vkCodes.filter((vk) => MODIFIER_VKS.has(vk));
+  const mainKey = vkCodes.find((vk) => !MODIFIER_VKS.has(vk));
+  if (mainKey === undefined) return false;
+  const mac = VK_TO_MAC[mainKey];
+  if (mac === undefined) return false;
+  return sendKeyEvent(mac, modifiers, w.pid);
 }
 
 export function captureWindow(windowId, outputPath) {

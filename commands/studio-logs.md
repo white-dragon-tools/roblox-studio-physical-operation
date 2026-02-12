@@ -9,12 +9,11 @@ description: 获取和分析 Roblox Studio 日志
 
 ## 步骤
 
-1. 确认 place_path，如未提供则询问或使用 `studio_list` 查找
+1. 确认 place_path，如未提供则询问或使用 `list` 查找
 2. 根据用户需求选择操作：
-   - 获取最新日志：`logs_get`
-   - 搜索特定内容：`logs_search` + pattern
-   - 按日期范围：`logs_by_date`
-   - 检查错误：`logs_has_error`
+   - 获取最新日志：`log`
+   - 搜索特定内容：`log` + pipe to `grep`/`jq`
+   - 检查错误：`log --errors`
 3. 解析日志内容，识别：
    - 错误和警告
    - 用户 print 输出
@@ -23,10 +22,9 @@ description: 获取和分析 Roblox Studio 日志
 
 ## 常用场景
 
-- "查看最新日志" → `logs_get`
-- "搜索 error" → `logs_search` with pattern "error"
-- "有没有报错" → `logs_has_error`
-- "清理旧日志" → `logs_clean`
+- "查看最新日志" → `log`
+- "搜索 error" → `log | jq -r .logs | grep "error"`
+- "有没有报错" → `log --errors`
 
 ## 输出格式
 

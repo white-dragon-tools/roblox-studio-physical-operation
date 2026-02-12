@@ -21,6 +21,7 @@ export const {
   sendKeyComboToWindow,
   captureWindow,
   captureWindowToBuffer,
+  captureViewport,
   clickAt,
   rightClickAt,
   doubleClickAt,

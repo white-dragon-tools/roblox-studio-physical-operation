@@ -273,6 +273,11 @@ export function doubleClickAt(hwnd, x, y, restoreFocus = true) {
   return false; // TODO
 }
 
+// TODO: implement viewport capture for Windows
+export async function captureViewport(_windowId, _pid, _placePath) {
+  return null;
+}
+
 export function findAllWindowsByPid(pid) {
   const windows = [];
   const cb = koffi.register((hwnd, _) => {

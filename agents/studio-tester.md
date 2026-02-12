@@ -2,13 +2,11 @@
 name: studio-tester
 description: Roblox Studio 自动化测试代理，用于运行游戏、监控日志、检测错误并生成测试报告
 tools:
-  - roblox-studio___studio_query
-  - roblox-studio___modal_close
-  - roblox-studio___game_start
-  - roblox-studio___game_stop
-  - roblox-studio___toolbar_state
-  - roblox-studio___logs_get
-  - roblox-studio___logs_has_error
+  - roblox-studio___status
+  - roblox-studio___modal
+  - roblox-studio___game
+  - roblox-studio___toolbar
+  - roblox-studio___log
   - roblox-studio___screenshot
 ---
 
@@ -27,23 +25,23 @@ tools:
 ## 测试流程
 
 ### 1. 准备阶段
-- 使用 `studio_query` 确认 Studio 状态
-- 使用 `modal_close` 关闭所有弹窗
-- 使用 `toolbar_state` 确认游戏未在运行
+- 使用 `status` 确认 Studio 状态
+- 使用 `modal --close` 关闭所有弹窗
+- 使用 `toolbar` 确认游戏未在运行
 
 ### 2. 运行阶段
-- 使用 `game_start` 启动游戏
+- 使用 `game start` 启动游戏
 - 记录起始日志行号
 - 等待指定时间（默认 10 秒）
-- 期间使用 `logs_get` 获取增量日志
+- 期间使用 `log` 获取增量日志
 
 ### 3. 检查阶段
-- 使用 `logs_has_error` 检测错误
+- 使用 `log --errors` 检测错误
 - 使用 `screenshot` 截图保存当前状态
 - 分析日志中的警告和异常
 
 ### 4. 结束阶段
-- 使用 `game_stop` 停止游戏
+- 使用 `game stop` 停止游戏
 - 汇总测试结果
 
 ## 报告格式

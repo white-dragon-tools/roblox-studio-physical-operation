@@ -25,37 +25,32 @@ All commands output JSON to stdout.
 
 | Command | Description |
 |---------|-------------|
-| `studio_help` | Show help documentation |
-| `studio_list` | List all running Studio instances (local + cloud) |
-| `open` | Open Studio with a .rbxl file |
-| `close` | Close Studio (Stop-Process/kill -9) |
-| `studio_status` | Get basic status (pid, hwnd, log path) |
-| `studio_query` | Query Studio status (process, window, modals) |
+| `list` | List all running Studio instances (local + cloud) |
+| `open <place_path>` | Open Studio with a .rbxl file |
+| `close <place_path>` | Close Studio (Stop-Process/kill -9) |
+| `status <place_path>` | Get full status (process, window, modals, log path) |
 
 #### Modal Dialog Control
 
 | Command | Description |
 |---------|-------------|
-| `modal_detect` | Detect modal dialogs |
-| `modal_close` | Close all modal dialogs |
+| `modal <place_path>` | Detect modal dialogs |
+| `modal <place_path> --close` | Close all modal dialogs |
 
 #### Game Control
 
 | Command | Description |
 |---------|-------------|
-| `game_start` | Start game (F5) |
-| `game_stop` | Stop game (Shift+F5) |
-| `game_pause` | Pause/resume game (F12) |
+| `game start <place_path>` | Start game (F5) |
+| `game stop <place_path>` | Stop game (Shift+F5) |
+| `game pause <place_path>` | Pause/resume game (F12) |
 
 #### Log Analysis
 
 | Command | Description |
 |---------|-------------|
-| `logs_get` | Get filtered logs (user script output only) |
-| `logs_search` | Search logs with regex pattern |
-| `logs_clean` | Clean old log files (default: 7 days) |
-| `logs_has_error` | Detect errors in logs |
-| `logs_by_date` | Get logs by date range |
+| `log <place_path>` | Get filtered logs (user script output only) |
+| `log <place_path> --errors` | Detect errors in logs |
 
 Log options: `--after-line`, `--before-line`, `--start-date`, `--end-date`, `--timestamps`, `--context`
 
@@ -63,67 +58,69 @@ Log options: `--after-line`, `--before-line`, `--start-date`, `--end-date`, `--t
 
 | Command | Description |
 |---------|-------------|
-| `toolbar_state` | Detect toolbar button state via template matching |
-| `toolbar_state_debug` | Toolbar detection with debug image |
+| `toolbar <place_path>` | Detect toolbar button state via template matching |
+| `toolbar <place_path> --debug` | Toolbar detection with debug image |
 
 #### Screenshot
 
 | Command | Description |
 |---------|-------------|
-| `screenshot` | Capture Studio window |
-| `screenshot_full` | Capture window with all modal dialogs |
-| `screenshot_viewport` | Capture game viewport only (macOS only) |
+| `screenshot <place_path>` | Capture Studio window |
+| `screenshot <place_path> --full` | Capture window with all modal dialogs |
+| `screenshot <place_path> --viewport` | Capture game viewport only (macOS only) |
 
 ### Examples
 
 ```bash
 # List all running instances
-rspo studio_list
+rspo list
 
-# Query Studio status
-rspo studio_query "D:/project/game.rbxl"
+# Get full Studio status
+rspo status "D:/project/game.rbxl"
 
 # Start game
-rspo game_start "D:/project/game.rbxl"
+rspo game start "D:/project/game.rbxl"
 
 # Get logs
-rspo logs_get "D:/project/game.rbxl"
+rspo log "D:/project/game.rbxl"
 
 # Get logs with options
-rspo logs_get "D:/project/game.rbxl" --after-line 100 --timestamps
+rspo log "D:/project/game.rbxl" --after-line 100 --timestamps
 
 # Get logs filtered by run context (play/edit)
-rspo logs_get "D:/project/game.rbxl" --context play
+rspo log "D:/project/game.rbxl" --context play
 
-# Search logs with regex
-rspo logs_search "D:/project/game.rbxl" "Score:"
+# Search logs (pipe to grep/jq)
+rspo log "D:/project/game.rbxl" | jq -r .logs | grep "Score:"
 
 # Detect toolbar state (running/stopped)
-rspo toolbar_state "D:/project/game.rbxl"
+rspo toolbar "D:/project/game.rbxl"
 
 # Capture game viewport screenshot (macOS)
-rspo screenshot_viewport "D:/project/game.rbxl"
+rspo screenshot "D:/project/game.rbxl" --viewport
 
 # Get command help
-rspo logs_get -h
+rspo log -h
 ```
 
 ### Output Examples
 
-**studio_query:**
+**status:**
 ```json
 {
   "active": true,
   "ready": true,
   "pid": 12345,
   "hwnd": 67890,
+  "log_path": "/path/to/studio.log",
+  "log_last_line": 2330,
   "has_modal": false,
   "modal_count": 0,
   "modals": []
 }
 ```
 
-**toolbar_state:**
+**toolbar:**
 ```json
 {
   "play": "enabled",
@@ -135,7 +132,7 @@ rspo logs_get -h
 
 `game_state`: `stopped` or `running`.
 
-**logs_get:**
+**log:**
 ```json
 {
   "logs": "[P] Hello world!\n[P] Score: 100",
@@ -148,7 +145,7 @@ rspo logs_get -h
 
 Log context labels: `[P]` = Play (game running), `[E]` = Edit mode.
 
-**studio_list:**
+**list:**
 ```json
 [
   { "pid": 12345, "hwnd": 67890, "type": "local", "place_path": "D:/project/game.rbxl" },
@@ -185,7 +182,7 @@ if (ok) console.log(session.pid, session.hwnd, session.logPath);
 ```
 src/
   index.mjs                # Library entry point (re-exports all modules)
-  cli.mjs                  # CLI entry point, command routing and option parsing
+  cli.mjs                  # CLI entry point (9 commands), option parsing and routing
   log-filter.mjs           # Log exclusion rules (Studio internal log prefixes/substrings)
   log-utils.mjs            # Log parsing, date filtering, search, error detection
   studio-manager.mjs       # Process finding, PID-log mapping, session management
