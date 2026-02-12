@@ -280,7 +280,7 @@ async function toolbarState(placePath) {
   const [ok, msg, session] = await sm.getSession(placePath);
   if (!ok) return { error: msg };
 
-  const capture = p.captureWindowToBuffer(session.hwnd);
+  const capture = await p.captureWindowToBuffer(session.hwnd);
   if (!capture) return { error: "无法捕获窗口" };
 
   const state = await detectToolbarState(capture);
@@ -300,7 +300,7 @@ async function toolbarStateDebug(placePath, saveDebugImage = true) {
   const [ok, msg, session] = await sm.getSession(placePath);
   if (!ok) return { error: msg };
 
-  const capture = p.captureWindowToBuffer(session.hwnd);
+  const capture = await p.captureWindowToBuffer(session.hwnd);
   if (!capture) return { error: "无法捕获窗口" };
 
   const state = await detectToolbarState(capture);

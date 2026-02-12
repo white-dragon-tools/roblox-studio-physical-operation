@@ -39,12 +39,44 @@ function getLogCommandLineRaw(logPath) {
         foundCmd = true;
         continue;
       }
-      if (foundCmd && line.includes("RobloxStudioBeta")) {
+      if (foundCmd && (line.includes("RobloxStudioBeta") || line.includes("RobloxStudio"))) {
         return line;
       }
     }
   } catch {}
   return null;
+}
+
+function getLogPlacePathRaw(logPath) {
+  try {
+    const content = readFileSync(logPath, { encoding: "utf-8" });
+    const lines = content.split("\n");
+    for (let i = 0; i < Math.min(lines.length, 200); i++) {
+      const match = lines[i].match(/\[FLog::FileOpenEventHandler\] Trying to open local file (.+)/);
+      if (match) return match[1].trim();
+    }
+  } catch {}
+  return null;
+}
+
+function getLogPlacePath(logPath) {
+  const index = loadLogIndex();
+  const filename = basename(logPath);
+  let mtime;
+  try {
+    mtime = statSync(logPath).mtimeMs;
+  } catch {
+    return null;
+  }
+  if (index[filename] && index[filename].mtime === mtime && index[filename].placePath !== undefined) {
+    return index[filename].placePath;
+  }
+  const placePath = getLogPlacePathRaw(logPath);
+  if (!index[filename]) index[filename] = {};
+  index[filename].mtime = mtime;
+  index[filename].placePath = placePath;
+  saveLogIndex(index);
+  return placePath;
 }
 
 export function getAllLogCmdlines(logFiles) {
@@ -144,21 +176,72 @@ export function findLatestStudioLogs(limit = 10) {
   }
 }
 
+// Mac: build PID -> log file mapping via CrashHandler cmdline, fallback to lsof
+function buildPidLogMapMac(processes) {
+  const pidLogMap = {};
+  // 1) CrashHandler: --studioPid <pid> --attachment=..._last.log=<path>
+  try {
+    const result = execSync("ps -eo pid,command", { encoding: "utf-8", timeout: 5000 });
+    for (const line of result.split("\n")) {
+      if (!line.includes("RobloxCrashHandler")) continue;
+      const pidMatch = line.match(/--studioPid\s+(\d+)/);
+      const logMatch = line.match(/--attachment=attachment_[^=]+=([^\s]+_last\.log)/);
+      if (pidMatch && logMatch) {
+        pidLogMap[parseInt(pidMatch[1], 10)] = logMatch[1];
+      }
+    }
+  } catch {}
+
+  // 2) lsof fallback for PIDs not yet mapped
+  const unmapped = processes.filter((proc) => !pidLogMap[proc.pid]);
+  if (unmapped.length > 0) {
+    try {
+      const pids = unmapped.map((proc) => proc.pid).join(",");
+      const result = execSync(`lsof -p ${pids} 2>/dev/null`, { encoding: "utf-8", timeout: 5000 });
+      for (const line of result.split("\n")) {
+        if (!line.includes("_last.log")) continue;
+        const parts = line.split(/\s+/);
+        const pid = parseInt(parts[1], 10);
+        const logPath = parts[parts.length - 1];
+        if (pid && logPath && !pidLogMap[pid]) {
+          pidLogMap[pid] = logPath;
+        }
+      }
+    } catch {}
+  }
+  return pidLogMap;
+}
+
 export async function findSessionByPlacePath(placePath) {
   const sep = process.platform === "win32" ? "\\" : "/";
   const normalized = normalize(placePath).toLowerCase();
   const processes = getAllStudioProcesses();
   const logFiles = findLatestStudioLogs(20);
-  const logCmdlines = getAllLogCmdlines(logFiles);
-
   const p = await getPlatformModule();
 
-  // Match log file cmdline to place path, then find running process with window
+  if (process.platform === "darwin") {
+    // Mac: use PID -> log -> place path mapping for precise matching
+    const pidLogMap = buildPidLogMapMac(processes);
+    for (const proc of processes) {
+      const logPath = pidLogMap[proc.pid];
+      if (!logPath) continue;
+      const logPlace = getLogPlacePath(logPath);
+      if (!logPlace) continue;
+      if (normalize(logPlace).toLowerCase() !== normalized) continue;
+      const hwnd = p.findWindowByPid(proc.pid);
+      if (hwnd) {
+        return { placePath, logPath, hwnd, pid: proc.pid };
+      }
+    }
+    return null;
+  }
+
+  // Windows: match via log cmdline
+  const logCmdlines = getAllLogCmdlines(logFiles);
   for (const [logPath, cmdline] of Object.entries(logCmdlines)) {
     const cmdNorm = cmdline.replace(/[\\/]/g, sep).toLowerCase();
     if (!cmdNorm.includes(normalized.replace(/[\\/]/g, sep))) continue;
 
-    // Found a log file for this place, now find a running process with a window
     for (const proc of processes) {
       const hwnd = p.findWindowByPid(proc.pid);
       if (hwnd) {
@@ -223,18 +306,17 @@ export async function openPlace(placePath) {
       child = spawn(studioPath, [placePath], { detached: true, stdio: "ignore" });
     }
     child.unref();
-    const pid = child.pid;
 
-    let hwnd = null;
+    // Mac: `open -a` PID != Studio PID, poll findSessionByPlacePath instead
     const start = Date.now();
     while (Date.now() - start < 30000) {
-      hwnd = p.findWindowByPid(pid);
-      if (hwnd) break;
-      await new Promise((r) => setTimeout(r, 1000));
+      const session = await findSessionByPlacePath(placePath);
+      if (session) {
+        return [true, `Studio started (PID: ${session.pid}, HWND: ${session.hwnd})`];
+      }
+      await new Promise((r) => setTimeout(r, 2000));
     }
-
-    if (!hwnd) return [false, `Studio started (PID: ${pid}), but window not found`];
-    return [true, `Studio started (PID: ${pid}, HWND: ${hwnd})`];
+    return [false, "Studio started, but session not found within timeout"];
   } catch (e) {
     return [false, `Failed to start Studio: ${e.message}`];
   }
@@ -248,7 +330,7 @@ export async function closePlace(placePath = null, placeId = null) {
     if (process.platform === "win32") {
       execSync(`powershell -NoProfile -Command "Stop-Process -Id ${session.pid} -Force"`, { timeout: 5000 });
     } else {
-      execSync(`kill ${session.pid}`, { timeout: 5000 });
+      execSync(`kill -9 ${session.pid}`, { timeout: 5000 });
     }
 
     if (process.platform === "win32" && placePath && !placePath.startsWith("cloud:")) {
