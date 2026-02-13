@@ -13,7 +13,8 @@
     "./platform": "./src/platform/index.mjs",
     "./log-utils": "./src/log-utils.mjs",
     "./log-filter": "./src/log-filter.mjs",
-    "./toolbar-detector": "./src/toolbar-detector.mjs"
+    "./toolbar-detector": "./src/toolbar-detector.mjs",
+    "./screenshot-utils": "./src/screenshot-utils.mjs"
   },
   "scripts": {
     "test": "vitest run",

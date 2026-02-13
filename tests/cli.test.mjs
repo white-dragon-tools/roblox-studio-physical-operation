@@ -99,4 +99,35 @@ describe("getCommandExamples", () => {
   it("returns null for unknown command", () => {
     expect(getCommandExamples("foobar")).toBeNull();
   });
+
+  it("returns examples for record command", () => {
+    const ex = getCommandExamples("record");
+    expect(ex).not.toBeNull();
+    expect(ex).toContain("rspo record");
+    expect(ex).toContain("--duration");
+    expect(ex).toContain("--fps");
+  });
+});
+
+describe("parseOptions - duration and fps", () => {
+  it("parses --duration", () => {
+    expect(parseOptions(["--duration", "5"])).toEqual({ duration: 5 });
+  });
+
+  it("parses --fps", () => {
+    expect(parseOptions(["--fps", "2"])).toEqual({ fps: 2 });
+  });
+
+  it("parses --duration and --fps together", () => {
+    const result = parseOptions(["--duration", "10", "--fps", "5"]);
+    expect(result).toEqual({ duration: 10, fps: 5 });
+  });
+
+  it("ignores --duration without value", () => {
+    expect(parseOptions(["--duration"])).toEqual({});
+  });
+
+  it("ignores --fps without value", () => {
+    expect(parseOptions(["--fps"])).toEqual({});
+  });
 });

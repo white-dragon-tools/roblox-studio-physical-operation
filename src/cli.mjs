@@ -1,16 +1,14 @@
 #!/usr/bin/env node
 
-import { mkdirSync, readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
 import {
   getLogsFromLine,
   findErrors,
 } from "./log-utils.mjs";
 import { detectToolbarState } from "./toolbar-detector.mjs";
 import { parseOptions, getCommandExamples } from "./cli-parse.mjs";
-
-const SCREENSHOT_DIR = join(tmpdir(), "roblox_studio_mcp_screenshots");
+import { ensureScreenshotDir, recordViewport } from "./screenshot-utils.mjs";
 
 let platform;
 async function getPlatform() {
@@ -200,7 +198,7 @@ async function screenshotCmd(placePath, options = {}) {
   const [ok, msg, session] = await sm.getSession(placePath);
   if (!ok) return { error: msg };
 
-  mkdirSync(SCREENSHOT_DIR, { recursive: true });
+  const screenshotDir = ensureScreenshotDir(placePath);
 
   if (!options.full && !options.normal) {
     if (typeof p.captureViewport !== "function") {
@@ -210,7 +208,7 @@ async function screenshotCmd(placePath, options = {}) {
     if (!buf) return { error: "无法捕获游戏视口" };
 
     const filename = options.filename || `viewport_${Date.now()}.png`;
-    const outputPath = join(SCREENSHOT_DIR, filename);
+    const outputPath = join(screenshotDir, filename);
     const sharp = (await import("sharp")).default;
     await sharp(buf.data, { raw: { width: buf.width, height: buf.height, channels: 3 } })
       .png()
@@ -220,7 +218,7 @@ async function screenshotCmd(placePath, options = {}) {
 
   if (options.full) {
     const filename = options.filename || `screenshot_full_${Date.now()}.png`;
-    const outputPath = join(SCREENSHOT_DIR, filename);
+    const outputPath = join(screenshotDir, filename);
 
     if (typeof p.captureWindowWithModals === "function") {
       const [result, windowsInfo] = p.captureWindowWithModals(session.hwnd, session.pid, outputPath);
@@ -248,7 +246,7 @@ async function screenshotCmd(placePath, options = {}) {
 
   // --normal: 普通截图
   const filename = options.filename || `screenshot_${Date.now()}.png`;
-  const outputPath = join(SCREENSHOT_DIR, filename);
+  const outputPath = join(screenshotDir, filename);
   const result = await p.captureWindow(session.hwnd, outputPath);
 
   if (result) {
@@ -278,8 +276,8 @@ async function toolbar(placePath, options = {}) {
   if (options.debug) {
     let debugPath = null;
     if (options.save !== false) {
-      mkdirSync(SCREENSHOT_DIR, { recursive: true });
-      debugPath = join(SCREENSHOT_DIR, `toolbar_debug_${Date.now()}.png`);
+      const debugDir = ensureScreenshotDir(placePath);
+      debugPath = join(debugDir, `toolbar_debug_${Date.now()}.png`);
       const sharp = (await import("sharp")).default;
       await sharp(capture.data, { raw: { width: capture.width, height: capture.height, channels: 3 } })
         .png()
@@ -309,6 +307,20 @@ async function toolbar(placePath, options = {}) {
     stop: state.stop,
     game_state: state.gameState,
   };
+}
+
+async function record(placePath, options = {}) {
+  const sm = await getStudioManager();
+  const [ok, msg, session] = await sm.getSession(placePath);
+  if (!ok) return { error: msg };
+
+  return recordViewport({
+    windowId: session.hwnd,
+    pid: session.pid,
+    placePath,
+    duration: options.duration || 3,
+    fps: options.fps || 3,
+  });
 }
 
 // ============ 命令定义 ============
@@ -376,6 +388,14 @@ const COMMANDS = {
       "  --no-save           调试模式下不保存截图文件",
     ],
   },
+  record: {
+    args: "<place_path> [options]",
+    desc: "录制游戏视口，生成帧网格图",
+    options: [
+      "  --duration <n>      录制时长（秒，默认 3）",
+      "  --fps <n>           每秒帧数（默认 3）",
+    ],
+  },
 };
 
 function printUsage() {
@@ -409,6 +429,11 @@ Commands:
     screenshot <place_path>           游戏视口截图（默认）
     screenshot <place_path> --normal  普通窗口截图
     screenshot <place_path> --full    完整截图（含弹窗）
+
+  录像:
+    record <place_path>               录制视口帧网格图（默认 3s, 3fps）
+    record <place_path> --duration 5  指定录制时长
+    record <place_path> --fps 2       指定帧率
 
 所有命令输出 JSON 格式。使用 "rspo <command> -h" 查看命令详情。
 `);
@@ -569,6 +594,16 @@ async function main() {
           process.exit(1);
         }
         result = await toolbar(placePath, options);
+        break;
+      }
+
+      case "record": {
+        const placePath = args[1];
+        if (!placePath || placePath.startsWith("-")) {
+          console.log(JSON.stringify({ error: "缺少 place_path 参数" }));
+          process.exit(1);
+        }
+        result = await record(placePath, options);
         break;
       }
     }

@@ -3,13 +3,11 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { mkdirSync, readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
 import { getLogsFromLine, findErrors } from "./log-utils.mjs";
 import { detectToolbarState } from "./toolbar-detector.mjs";
-
-const SCREENSHOT_DIR = join(tmpdir(), "roblox_studio_mcp_screenshots");
+import { ensureScreenshotDir, recordViewport } from "./screenshot-utils.mjs";
 
 let platform;
 async function getPlatform() {
@@ -199,7 +197,7 @@ async function handleScreenshot(placePath, options = {}) {
   const [ok, msg, session] = await sm.getSession(placePath);
   if (!ok) return { error: msg };
 
-  mkdirSync(SCREENSHOT_DIR, { recursive: true });
+  const screenshotDir = ensureScreenshotDir(placePath);
 
   if (options.mode === "viewport") {
     if (typeof p.captureViewport !== "function") {
@@ -209,7 +207,7 @@ async function handleScreenshot(placePath, options = {}) {
     if (!buf) return { error: "Failed to capture game viewport" };
 
     const filename = options.filename || `viewport_${Date.now()}.png`;
-    const outputPath = join(SCREENSHOT_DIR, filename);
+    const outputPath = join(screenshotDir, filename);
     const sharp = (await import("sharp")).default;
     await sharp(buf.data, { raw: { width: buf.width, height: buf.height, channels: 3 } })
       .png()
@@ -219,7 +217,7 @@ async function handleScreenshot(placePath, options = {}) {
 
   if (options.mode === "full") {
     const filename = options.filename || `screenshot_full_${Date.now()}.png`;
-    const outputPath = join(SCREENSHOT_DIR, filename);
+    const outputPath = join(screenshotDir, filename);
 
     if (typeof p.captureWindowWithModals === "function") {
       const [result, windowsInfo] = p.captureWindowWithModals(session.hwnd, session.pid, outputPath);
@@ -247,7 +245,7 @@ async function handleScreenshot(placePath, options = {}) {
 
   // Default: normal screenshot
   const filename = options.filename || `screenshot_${Date.now()}.png`;
-  const outputPath = join(SCREENSHOT_DIR, filename);
+  const outputPath = join(screenshotDir, filename);
   const result = await p.captureWindow(session.hwnd, outputPath);
 
   if (result) {
@@ -281,6 +279,20 @@ async function handleToolbar(placePath) {
     stop: state.stop,
     game_state: state.gameState,
   };
+}
+
+async function handleRecord(placePath, options = {}) {
+  const sm = await getStudioManager();
+  const [ok, msg, session] = await sm.getSession(placePath);
+  if (!ok) return { error: msg };
+
+  return recordViewport({
+    windowId: session.hwnd,
+    pid: session.pid,
+    placePath,
+    duration: options.duration || 3,
+    fps: options.fps || 3,
+  });
 }
 
 // ============ MCP Server setup ============
@@ -429,6 +441,24 @@ server.tool(
   async ({ place_path }) => {
     try {
       const result = await handleToolbar(place_path);
+      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    } catch (e) {
+      return { content: [{ type: "text", text: JSON.stringify({ error: e.message }) }], isError: true };
+    }
+  },
+);
+
+server.tool(
+  "record",
+  "Record the game viewport over a duration, capturing frames and compositing them into a grid image for AI analysis. Returns the grid image path.",
+  {
+    place_path: z.string().describe("Absolute path to the .rbxl place file"),
+    duration: z.number().optional().default(3).describe("Recording duration in seconds (default: 3)"),
+    fps: z.number().optional().default(3).describe("Frames per second (default: 3)"),
+  },
+  async ({ place_path, duration, fps }) => {
+    try {
+      const result = await handleRecord(place_path, { duration, fps });
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     } catch (e) {
       return { content: [{ type: "text", text: JSON.stringify({ error: e.message }) }], isError: true };
