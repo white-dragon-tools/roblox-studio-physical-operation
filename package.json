@@ -31,7 +31,7 @@
   "author": "White Dragon Tools",
   "repository": {
     "type": "git",
-    "url": "https://github.com/anthropics/roblox-studio-tools"
+    "url": "https://github.com/white-dragon-tools/roblox-studio-physical-operation"
   },
   "engines": {
     "node": ">=18.0.0"
