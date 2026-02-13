@@ -265,7 +265,14 @@ async function handleToolbar(placePath) {
   const capture = await p.captureWindowToBuffer(session.hwnd);
   if (!capture) return { error: "Failed to capture window" };
 
-  const state = await detectToolbarState(capture);
+  // Toolbar is at the top — crop to reduce image processing cost
+  const TOOLBAR_MAX_HEIGHT = 300;
+  const cropH = Math.min(capture.height, TOOLBAR_MAX_HEIGHT);
+  const toolbarCapture = cropH < capture.height
+    ? { data: capture.data.subarray(0, capture.width * 3 * cropH), width: capture.width, height: cropH }
+    : capture;
+
+  const state = await detectToolbarState(toolbarCapture);
   if (!state) return { error: "Failed to detect toolbar state" };
 
   return {

@@ -266,7 +266,14 @@ async function toolbar(placePath, options = {}) {
   const capture = await p.captureWindowToBuffer(session.hwnd);
   if (!capture) return { error: "无法捕获窗口" };
 
-  const state = await detectToolbarState(capture);
+  // 工具栏在窗口顶部，只需裁剪上部区域进行检测，避免处理整个窗口图像
+  const TOOLBAR_MAX_HEIGHT = 300;
+  const cropH = Math.min(capture.height, TOOLBAR_MAX_HEIGHT);
+  const toolbarCapture = cropH < capture.height
+    ? { data: capture.data.subarray(0, capture.width * 3 * cropH), width: capture.width, height: cropH }
+    : capture;
+
+  const state = await detectToolbarState(toolbarCapture);
 
   if (options.debug) {
     let debugPath = null;
