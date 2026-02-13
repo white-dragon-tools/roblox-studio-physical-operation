@@ -309,7 +309,7 @@ async function handleRecord(placePath, options = {}) {
 
 const server = new McpServer({
   name: "roblox-studio",
-  version: "0.6.1",
+  version: "0.6.2",
 });
 
 server.tool(
