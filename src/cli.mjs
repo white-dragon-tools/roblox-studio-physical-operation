@@ -202,7 +202,7 @@ async function screenshotCmd(placePath, options = {}) {
 
   mkdirSync(SCREENSHOT_DIR, { recursive: true });
 
-  if (options.viewport) {
+  if (!options.full && !options.normal) {
     if (typeof p.captureViewport !== "function") {
       return { error: "当前平台不支持 viewport 截图" };
     }
@@ -246,7 +246,7 @@ async function screenshotCmd(placePath, options = {}) {
     return { error: "截图失败" };
   }
 
-  // 默认：普通截图
+  // --normal: 普通截图
   const filename = options.filename || `screenshot_${Date.now()}.png`;
   const outputPath = join(SCREENSHOT_DIR, filename);
   const result = await p.captureWindow(session.hwnd, outputPath);
@@ -357,8 +357,8 @@ const COMMANDS = {
     args: "<place_path> [filename]",
     desc: "截取 Studio 窗口截图",
     options: [
+      "  --normal            截取普通窗口截图（默认为 viewport）",
       "  --full              截取完整截图（包含所有模态弹窗）",
-      "  --viewport          截取游戏渲染视口截图（仅 macOS）",
     ],
   },
   toolbar: {
@@ -399,9 +399,9 @@ Commands:
     toolbar <place_path> --debug    带调试信息的检测
 
   截图:
-    screenshot <place_path>         截图
-    screenshot <place_path> --full  完整截图（含弹窗）
-    screenshot <place_path> --viewport  游戏视口截图（仅 macOS）
+    screenshot <place_path>           游戏视口截图（默认）
+    screenshot <place_path> --normal  普通窗口截图
+    screenshot <place_path> --full    完整截图（含弹窗）
 
 所有命令输出 JSON 格式。使用 "rspo <command> -h" 查看命令详情。
 `);

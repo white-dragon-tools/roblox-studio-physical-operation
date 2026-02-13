@@ -43,7 +43,7 @@ export function getCommandExamples(command) {
     modal: `  rspo modal ${p}\n  rspo modal ${p} --close`,
     game: `  rspo game start ${p}\n  rspo game stop ${p}\n  rspo game pause ${p}`,
     log: `  rspo log ${p}\n  rspo log ${p} --after-line 100 --timestamps\n  rspo log ${p} --errors`,
-    screenshot: `  rspo screenshot ${p}\n  rspo screenshot ${p} my_screenshot.png\n  rspo screenshot ${p} --full\n  rspo screenshot ${p} --viewport`,
+    screenshot: `  rspo screenshot ${p}\n  rspo screenshot ${p} my_screenshot.png\n  rspo screenshot ${p} --normal\n  rspo screenshot ${p} --full`,
     toolbar: `  rspo toolbar ${p}\n\n  Output: { "play": "enabled", "pause": "disabled", "stop": "disabled", "game_state": "stopped" }\n\n  rspo toolbar ${p} --debug`,
   };
   return exampleMap[command] || null;

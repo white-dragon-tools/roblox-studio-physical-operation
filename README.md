@@ -65,9 +65,9 @@ Log options: `--after-line`, `--before-line`, `--start-date`, `--end-date`, `--t
 
 | Command | Description |
 |---------|-------------|
-| `screenshot <place_path>` | Capture Studio window |
+| `screenshot <place_path>` | Capture game viewport (default) |
+| `screenshot <place_path> --normal` | Capture Studio window |
 | `screenshot <place_path> --full` | Capture window with all modal dialogs |
-| `screenshot <place_path> --viewport` | Capture game viewport only (macOS only) |
 
 ### Examples
 
@@ -96,8 +96,11 @@ rspo log "D:/project/game.rbxl" | jq -r .logs | grep "Score:"
 # Detect toolbar state (running/stopped)
 rspo toolbar "D:/project/game.rbxl"
 
-# Capture game viewport screenshot (macOS)
-rspo screenshot "D:/project/game.rbxl" --viewport
+# Capture game viewport screenshot (default)
+rspo screenshot "D:/project/game.rbxl"
+
+# Capture normal window screenshot
+rspo screenshot "D:/project/game.rbxl" --normal
 
 # Get command help
 rspo log -h
@@ -153,6 +156,44 @@ Log context labels: `[P]` = Play (game running), `[E]` = Edit mode.
 ]
 ```
 
+## Claude Code Plugin
+
+This tool can be used as a [Claude Code plugin](https://docs.anthropic.com/en/docs/claude-code), giving Claude direct control over Roblox Studio via MCP tools.
+
+### Install
+
+Clone or symlink this repo into your project's `.claude/plugins/` directory, or use `--plugin-dir`:
+
+```bash
+# Project-level plugin
+cp -r . /path/to/your-project/.claude/plugins/roblox-studio
+
+# Or test locally
+claude --plugin-dir .claude-plugin
+```
+
+### MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `list_studios` | List all running Studio instances |
+| `open_place` | Open Studio with a .rbxl file (waits up to 30s) |
+| `close_place` | Close a Studio instance (force kill) |
+| `get_status` | Get full status: process, window, modals, log path, last line |
+| `manage_modals` | Detect or close modal dialogs |
+| `game_control` | Start (F5) / Stop (Shift+F5) / Pause (F12) |
+| `get_logs` | Get filtered logs with play/edit context, incremental reading |
+| `screenshot` | Capture screenshot (default: viewport, also normal / full) |
+| `detect_toolbar` | Detect toolbar button state via template matching |
+
+### Example Usage in Claude Code
+
+```
+> Use get_status to check if my game.rbxl is open, then start the game and get the logs
+```
+
+Claude will call `get_status`, `game_control`, and `get_logs` tools automatically.
+
 ## As a Library
 
 ```js
@@ -183,6 +224,7 @@ if (ok) console.log(session.pid, session.hwnd, session.logPath);
 src/
   index.mjs                # Library entry point (re-exports all modules)
   cli.mjs                  # CLI entry point (9 commands), option parsing and routing
+  mcp-server.mjs           # MCP server entry point (9 tools for Claude Code plugin)
   log-filter.mjs           # Log exclusion rules (Studio internal log prefixes/substrings)
   log-utils.mjs            # Log parsing, date filtering, search, error detection
   studio-manager.mjs       # Process finding, PID-log mapping, session management
@@ -191,6 +233,9 @@ src/
     index.mjs              # Auto-select Windows or macOS backend
     windows.mjs            # Win32 API via koffi (EnumWindows, SendInput, PrintWindow)
     macos.mjs              # CoreGraphics + Accessibility API via koffi, AppleScript
+.claude-plugin/
+  plugin.json              # Plugin manifest
+.mcp.json                  # MCP server configuration (stdio transport, at plugin root)
 templates/
   dark/                    # Dark theme toolbar button templates
     play.png, pause.png, stop.png
@@ -203,6 +248,7 @@ tests/
 
 ## Dependencies
 
+- **@modelcontextprotocol/sdk** -- MCP server for Claude Code plugin integration
 - **koffi** -- Native FFI: Win32 API on Windows, CoreGraphics/CoreFoundation/Accessibility API on macOS
 - **opencv-wasm** -- Template matching for toolbar detection (cross-platform, no native compilation)
 - **sharp** -- Image processing: screenshot capture, grayscale conversion, cropping
