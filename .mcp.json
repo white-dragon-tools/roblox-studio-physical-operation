@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "roblox-studio": {
+    "roblox-studio-physical-operation": {
       "type": "stdio",
       "command": "node",
       "args": ["${CLAUDE_PLUGIN_ROOT}/src/mcp-server.mjs"]
