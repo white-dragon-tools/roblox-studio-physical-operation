@@ -8,17 +8,21 @@ import koffi from "koffi";
 export const VK_F5 = 0x74;
 export const VK_F12 = 0x7b;
 export const VK_SHIFT = 0x10;
+export const VK_CONTROL = 0x11;
+export const VK_S = 0x53;
 
 // macOS keycode mapping
 const VK_TO_MAC = {
   0x74: 96,  // VK_F5 -> kVK_F5
   0x7b: 111, // VK_F12 -> kVK_F12
   0x10: 56,  // VK_SHIFT -> kVK_Shift
+  0x11: 55,  // VK_CONTROL -> kVK_Command (Win Ctrl = Mac Cmd)
+  0x53: 1,   // VK_S -> kVK_ANSI_S
   0x0d: 36,  // VK_RETURN -> kVK_Return
   0x1b: 53,  // VK_ESCAPE -> kVK_Escape
 };
 
-const MODIFIER_VKS = new Set([0x10]); // VK_SHIFT
+const MODIFIER_VKS = new Set([0x10, 0x11]); // VK_SHIFT, VK_CONTROL
 
 // --- koffi bindings for CoreGraphics & CoreFoundation ---
 
@@ -61,6 +65,7 @@ const kCGWindowListExcludeDesktopElements = 16;
 const kCGNullWindowID = 0;
 const kCGHIDEventTap = 0;
 const kCGEventFlagMaskShift = BigInt(0x00020000);
+const kCGEventFlagMaskCommand = BigInt(0x00100000);
 
 // Pre-create CF key strings
 const cfKeys = {
@@ -395,9 +400,12 @@ function sendKeyEvent(macKeycode, modifiers = [], pid = null) {
     const eUp = CGEventCreateKeyboardEvent(null, macKeycode, false);
     if (!eDown || !eUp) return false;
 
-    if (modifiers.includes(0x10)) {
-      CGEventSetFlags(eDown, kCGEventFlagMaskShift);
-      CGEventSetFlags(eUp, kCGEventFlagMaskShift);
+    let flags = BigInt(0);
+    if (modifiers.includes(0x10)) flags |= kCGEventFlagMaskShift;
+    if (modifiers.includes(0x11)) flags |= kCGEventFlagMaskCommand;
+    if (flags) {
+      CGEventSetFlags(eDown, flags);
+      CGEventSetFlags(eUp, flags);
     }
 
     if (pid) {

@@ -281,6 +281,16 @@ async function handleToolbar(placePath) {
   };
 }
 
+async function handleSave(placePath) {
+  const sm = await getStudioManager();
+  const p = await getPlatform();
+  const [ok, msg, session] = await sm.getSession(placePath);
+  if (!ok) return { success: false, error: msg };
+
+  const ok2 = p.sendKeyComboToWindow(session.hwnd, [p.VK_CONTROL, p.VK_S]);
+  return { success: ok2, message: ok2 ? "Sent Ctrl+S (save place)" : "Failed to send key" };
+}
+
 async function handleRecord(placePath, options = {}) {
   const sm = await getStudioManager();
   const [ok, msg, session] = await sm.getSession(placePath);
@@ -299,7 +309,7 @@ async function handleRecord(placePath, options = {}) {
 
 const server = new McpServer({
   name: "roblox-studio",
-  version: "0.5.0",
+  version: "0.6.0",
 });
 
 server.tool(
@@ -441,6 +451,20 @@ server.tool(
   async ({ place_path }) => {
     try {
       const result = await handleToolbar(place_path);
+      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    } catch (e) {
+      return { content: [{ type: "text", text: JSON.stringify({ error: e.message }) }], isError: true };
+    }
+  },
+);
+
+server.tool(
+  "save_place",
+  "Save the current place in Roblox Studio by sending Ctrl+S (Windows) / Cmd+S (macOS)",
+  { place_path: z.string().describe("Absolute path to the .rbxl place file") },
+  async ({ place_path }) => {
+    try {
+      const result = await handleSave(place_path);
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     } catch (e) {
       return { content: [{ type: "text", text: JSON.stringify({ error: e.message }) }], isError: true };

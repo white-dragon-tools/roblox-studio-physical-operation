@@ -33,4 +33,6 @@ export const {
   VK_F5,
   VK_F12,
   VK_SHIFT,
+  VK_CONTROL,
+  VK_S,
 } = platformModule;

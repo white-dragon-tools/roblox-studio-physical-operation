@@ -88,7 +88,7 @@ describe("parseOptions", () => {
 
 describe("getCommandExamples", () => {
   it("returns examples for known commands", () => {
-    for (const cmd of ["list", "open", "close", "status", "modal", "game", "log", "screenshot", "toolbar"]) {
+    for (const cmd of ["list", "open", "close", "status", "modal", "game", "log", "screenshot", "toolbar", "save", "record"]) {
       const ex = getCommandExamples(cmd);
       expect(ex, `expected examples for '${cmd}'`).not.toBeNull();
       expect(typeof ex).toBe("string");

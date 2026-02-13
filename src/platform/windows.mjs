@@ -8,6 +8,8 @@ const gdi32 = koffi.load("gdi32.dll");
 export const VK_F5 = 0x74;
 export const VK_F12 = 0x7b;
 export const VK_SHIFT = 0x10;
+export const VK_CONTROL = 0x11;
+export const VK_S = 0x53;
 
 const INPUT_KEYBOARD = 1;
 const KEYEVENTF_KEYUP = 0x0002;

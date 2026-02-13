@@ -309,6 +309,16 @@ async function toolbar(placePath, options = {}) {
   };
 }
 
+async function save(placePath) {
+  const sm = await getStudioManager();
+  const p = await getPlatform();
+  const [ok, msg, session] = await sm.getSession(placePath);
+  if (!ok) return { success: false, error: msg };
+
+  const ok2 = p.sendKeyComboToWindow(session.hwnd, [p.VK_CONTROL, p.VK_S]);
+  return { success: ok2, message: ok2 ? "已发送 Ctrl+S (保存场景)" : "发送按键失败" };
+}
+
 async function record(placePath, options = {}) {
   const sm = await getStudioManager();
   const [ok, msg, session] = await sm.getSession(placePath);
@@ -388,9 +398,13 @@ const COMMANDS = {
       "  --no-save           调试模式下不保存截图文件",
     ],
   },
+  save: {
+    args: "<place_path>",
+    desc: "保存当前场景 (Ctrl+S / Cmd+S)",
+  },
   record: {
     args: "<place_path> [options]",
-    desc: "录制游戏视口，生成帧网格图",
+    desc: "录制游戏视口，每帧独立保存",
     options: [
       "  --duration <n>      录制时长（秒，默认 3）",
       "  --fps <n>           每秒帧数（默认 3）",
@@ -411,6 +425,9 @@ Commands:
 
   模态弹窗:
     modal <place_path> [--close]    检测或关闭模态弹窗
+
+  场景操作:
+    save <place_path>               保存场景 (Ctrl+S / Cmd+S)
 
   游戏控制:
     game start <place_path>         开始游戏 (F5)
@@ -594,6 +611,16 @@ async function main() {
           process.exit(1);
         }
         result = await toolbar(placePath, options);
+        break;
+      }
+
+      case "save": {
+        const placePath = args[1];
+        if (!placePath || placePath.startsWith("-")) {
+          console.log(JSON.stringify({ error: "缺少 place_path 参数" }));
+          process.exit(1);
+        }
+        result = await save(placePath);
         break;
       }
 
