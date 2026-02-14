@@ -31,12 +31,25 @@ async function list() {
   return sm.listInstances();
 }
 
-async function open(placePath) {
+async function open(placePath, options = {}) {
+  if (options.inject) {
+    const { injectIntoPlace } = await import("./rojo-inject.mjs");
+    const injectResult = await injectIntoPlace(placePath, options.inject);
+    if (!injectResult.success) {
+      return { success: false, message: `注入失败: ${injectResult.message}` };
+    }
+  }
+
   const sm = await getStudioManager();
   const [success, message] = await sm.openPlace(placePath);
   const pidMatch = message.match(/PID:\s*(\d+)/);
   const pid = pidMatch ? parseInt(pidMatch[1], 10) : null;
   return { success, message, pid };
+}
+
+async function inject(placePath, projectJsonPath) {
+  const { injectIntoPlace } = await import("./rojo-inject.mjs");
+  return injectIntoPlace(placePath, projectJsonPath);
 }
 
 async function activate(placePath) {
@@ -329,8 +342,15 @@ const COMMANDS = {
     desc: "列出所有运行中的 Studio 实例",
   },
   open: {
-    args: "<place_path>",
+    args: "<place_path> [--inject <project_json>]",
     desc: "打开 Studio 并加载指定的 .rbxl 文件",
+    options: [
+      "  --inject <path>     打开前注入 Rojo project.json 配置（幂等）",
+    ],
+  },
+  inject: {
+    args: "<place_path> <project_json>",
+    desc: "将 Rojo project.json 配置注入到 .rbxl 文件（幂等，可重复执行）",
   },
   activate: {
     args: "<place_path>",
@@ -414,6 +434,9 @@ Commands:
 
   模态弹窗:
     modal <place_path> [--close]    检测或关闭模态弹窗
+
+  注入:
+    inject <place_path> <project_json>  将配置注入到 .rbxl（幂等）
 
   场景操作:
     save <place_path>               保存场景 (Ctrl+S / Cmd+S)
@@ -521,7 +544,22 @@ async function main() {
           console.log(JSON.stringify({ error: "缺少 place_path 参数" }));
           process.exit(1);
         }
-        result = await open(placePath);
+        result = await open(placePath, options);
+        break;
+      }
+
+      case "inject": {
+        const placePath = args[1];
+        if (!placePath || placePath.startsWith("-")) {
+          console.log(JSON.stringify({ error: "缺少 place_path 参数" }));
+          process.exit(1);
+        }
+        const projectJson = args[2];
+        if (!projectJson || projectJson.startsWith("-")) {
+          console.log(JSON.stringify({ error: "缺少 project_json 参数" }));
+          process.exit(1);
+        }
+        result = await inject(placePath, projectJson);
         break;
       }
 

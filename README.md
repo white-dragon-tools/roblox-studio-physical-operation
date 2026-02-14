@@ -37,6 +37,17 @@ All commands output JSON to stdout.
 | `modal <place_path>` | Detect modal dialogs |
 | `modal <place_path> --close` | Close all modal dialogs |
 
+#### Rojo Inject
+
+| Command | Description |
+|---------|-------------|
+| `inject <place_path> <project_json>` | Inject Rojo project.json config into .rbxl (idempotent merge) |
+| `open <place_path> --inject <project_json>` | Inject config then open Studio |
+
+Merge by name+className matching. Safe to run multiple times — produces identical binary output.
+
+Requires `rojo-injectable` binary: set `ROJO_PATH` env var or place binary in `bin/` directory.
+
 #### Place Operations
 
 | Command | Description |
@@ -103,6 +114,12 @@ rspo log "D:/project/game.rbxl" | jq -r .logs | grep "Score:"
 
 # Detect toolbar state (running/stopped)
 rspo toolbar "D:/project/game.rbxl"
+
+# Inject Rojo config into .rbxl (idempotent)
+rspo inject "D:/project/game.rbxl" "D:/project/inject.project.json"
+
+# Open with injection
+rspo open "D:/project/game.rbxl" --inject "D:/project/inject.project.json"
 
 # Save place
 rspo save "D:/project/game.rbxl"
@@ -182,6 +199,14 @@ Log context labels: `[P]` = Play (game running), `[E]` = Edit mode.
 }
 ```
 
+**inject:**
+```json
+{
+  "success": true,
+  "message": "注入完成"
+}
+```
+
 **list:**
 ```json
 [
@@ -211,7 +236,7 @@ claude --plugin-dir .claude-plugin
 | Tool | Description |
 |------|-------------|
 | `list_studios` | List all running Studio instances |
-| `open_place` | Open Studio with a .rbxl file (waits up to 30s) |
+| `open_place` | Open Studio with a .rbxl file (optionally inject config first) |
 | `close_place` | Close a Studio instance (force kill) |
 | `get_status` | Get full status: process, window, modals, log path, last line |
 | `manage_modals` | Detect or close modal dialogs |
@@ -221,6 +246,7 @@ claude --plugin-dir .claude-plugin
 | `screenshot` | Capture screenshot (default: viewport, also normal / full) |
 | `record` | Record viewport frames, each saved as separate PNG |
 | `detect_toolbar` | Detect toolbar button state via template matching |
+| `inject_into_place` | Inject Rojo project.json config into .rbxl (idempotent merge) |
 
 ### Example Usage in Claude Code
 
@@ -236,6 +262,7 @@ Claude will call `get_status`, `game_control`, and `get_logs` tools automaticall
 import { getLogsFromLine, findErrors } from "@white-dragon-tools/roblox-studio-physical-operation/log-utils";
 import { detectToolbarStateFromFile } from "@white-dragon-tools/roblox-studio-physical-operation/toolbar-detector";
 import { getSession, openPlace, closePlace } from "@white-dragon-tools/roblox-studio-physical-operation/studio-manager";
+import { injectIntoPlace, getRojoBinaryPath } from "@white-dragon-tools/roblox-studio-physical-operation/rojo-inject";
 
 // Parse logs from a file
 const result = getLogsFromLine("/path/to/studio.log", {
@@ -252,6 +279,10 @@ console.log(state.theme);     // "dark", "light", or "legacy"
 // Session management
 const [ok, msg, session] = await getSession("/path/to/game.rbxl");
 if (ok) console.log(session.pid, session.hwnd, session.logPath);
+
+// Inject Rojo config into .rbxl (idempotent)
+const result = await injectIntoPlace("/path/to/game.rbxl", "/path/to/inject.project.json");
+console.log(result); // { success: true, message: "注入完成" }
 ```
 
 ## Architecture
@@ -259,13 +290,15 @@ if (ok) console.log(session.pid, session.hwnd, session.logPath);
 ```
 src/
   index.mjs                # Library entry point (re-exports all modules)
-  cli.mjs                  # CLI entry point (11 commands), option parsing and routing
-  mcp-server.mjs           # MCP server entry point (11 tools for Claude Code plugin)
+  cli.mjs                  # CLI entry point, option parsing and routing
+  cli-parse.mjs            # CLI option/argument parsing helpers
+  mcp-server.mjs           # MCP server entry point (Claude Code plugin)
   screenshot-utils.mjs     # Screenshot directory management, viewport recording
   log-filter.mjs           # Log exclusion rules (Studio internal log prefixes/substrings)
   log-utils.mjs            # Log parsing, date filtering, search, error detection
   studio-manager.mjs       # Process finding, PID-log mapping, session management
   toolbar-detector.mjs     # OpenCV WASM multi-theme template matching + color analysis
+  rojo-inject.mjs          # Rojo project.json injection into .rbxl (calls rojo-injectable binary)
   platform/
     index.mjs              # Auto-select Windows or macOS backend
     windows.mjs            # Win32 API via koffi (EnumWindows, SendInput, PrintWindow)
@@ -280,7 +313,9 @@ templates/
 tests/
   log-filter.test.mjs
   log-utils.test.mjs
-  toolbar-detector.test.mjs  # Screenshot regression tests (running/stopped samples)
+  rojo-inject.test.mjs          # Rojo inject unit tests (parameter validation)
+  rojo-inject.native.test.mjs   # Rojo inject integration tests (requires rojo binary)
+  toolbar-detector.test.mjs     # Screenshot regression tests (running/stopped samples)
 ```
 
 ## Dependencies
@@ -289,6 +324,10 @@ tests/
 - **koffi** -- Native FFI: Win32 API on Windows, CoreGraphics/CoreFoundation/Accessibility API on macOS
 - **opencv-wasm** -- Template matching for toolbar detection (cross-platform, no native compilation)
 - **sharp** -- Image processing: screenshot capture, grayscale conversion, cropping
+
+### External Binary
+
+- **[rojo-injectable](https://github.com/yoyo999888/rojo-injectable)** -- Rojo fork with `build --merge` support. Required for `inject` / `open --inject` commands. Set `ROJO_PATH` env var to the binary path, or place it as `bin/rojo-macos` / `bin/rojo-windows.exe`.
 
 ## Platform Details
 

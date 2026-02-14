@@ -1,6 +1,6 @@
 {
   "name": "@white-dragon-tools/roblox-studio-physical-operation",
-  "version": "0.6.2",
+  "version": "0.7.0",
   "description": "CLI tool for controlling Roblox Studio - toolbar detection, game control, log analysis",
   "type": "module",
   "main": "src/index.mjs",
@@ -14,7 +14,8 @@
     "./log-utils": "./src/log-utils.mjs",
     "./log-filter": "./src/log-filter.mjs",
     "./toolbar-detector": "./src/toolbar-detector.mjs",
-    "./screenshot-utils": "./src/screenshot-utils.mjs"
+    "./screenshot-utils": "./src/screenshot-utils.mjs",
+    "./rojo-inject": "./src/rojo-inject.mjs"
   },
   "scripts": {
     "test": "vitest run",

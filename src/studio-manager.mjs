@@ -441,11 +441,9 @@ export async function closePlace(placePath = null, placeId = null) {
   if (!ok) return [false, msg];
 
   try {
-    if (process.platform === "win32") {
-      execSync(`powershell -NoProfile -Command "Stop-Process -Id ${session.pid} -Force"`, { timeout: 5000 });
-    } else {
-      execSync(`kill -9 ${session.pid}`, { timeout: 5000 });
-    }
+    const p = await getPlatformModule();
+    const killed = p.closeStudio(session.pid);
+    if (!killed) return [false, `Failed to close Studio (PID: ${session.pid}), process may still be running`];
 
     removePidPlace(session.pid);
 

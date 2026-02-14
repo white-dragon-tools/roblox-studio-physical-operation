@@ -351,3 +351,10 @@ export function closeAllModals(hwnd, pid) {
   }
   return [closedTitles.length, closedTitles];
 }
+
+export function closeStudio(pid) {
+  try {
+    execSync(`powershell -NoProfile -Command "Stop-Process -Id ${pid} -Force -ErrorAction SilentlyContinue"`, { timeout: 5000 });
+  } catch {}
+  return true;
+}

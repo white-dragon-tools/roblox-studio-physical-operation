@@ -32,6 +32,7 @@ export const {
   getModalWindows,
   closeModalWindow,
   closeAllModals,
+  closeStudio,
   VK_F5,
   VK_F12,
   VK_SHIFT,

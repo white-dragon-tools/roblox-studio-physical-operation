@@ -635,3 +635,37 @@ export function closeAllModals(mainWindowId, pid) {
   }
   return [closedTitles.length, closedTitles];
 }
+
+export function closeStudio(pid) {
+  // 阶段1: AppleScript 优雅退出
+  runOsascript(`
+    tell application "System Events"
+      try
+        set targetProcess to first process whose unix id is ${pid}
+        tell targetProcess to quit
+      end try
+    end tell
+  `);
+
+  // 等 3 秒检查进程是否已退出
+  for (let i = 0; i < 6; i++) {
+    execSync("sleep 0.5");
+    try { execSync(`kill -0 ${pid}`, { timeout: 1000 }); } catch { return true; }
+  }
+
+  // 阶段2: 杀 CrashHandler + 主进程
+  try {
+    const ps = execSync("ps -eo pid,command", { encoding: "utf-8", timeout: 3000 });
+    for (const line of ps.split("\n")) {
+      if (line.includes("RobloxCrashHandler") && line.includes(`--studioPid ${pid}`)) {
+        const chPid = line.trim().split(/\s+/)[0];
+        try { execSync(`kill -9 ${chPid}`, { timeout: 2000 }); } catch {}
+      }
+    }
+  } catch {}
+  try { execSync(`kill -9 ${pid}`, { timeout: 2000 }); } catch {}
+
+  // 阶段3: 兜底验证
+  execSync("sleep 1");
+  try { execSync(`kill -0 ${pid}`, { timeout: 1000 }); return false; } catch { return true; }
+}

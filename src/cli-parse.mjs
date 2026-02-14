@@ -32,6 +32,10 @@ export function parseOptions(args) {
       options.duration = parseInt(args[++i], 10);
     } else if (arg === "--fps" && args[i + 1]) {
       options.fps = parseInt(args[++i], 10);
+    } else if (arg === "--inject" && args[i + 1]) {
+      options.inject = args[++i];
+    } else if (arg === "--normal") {
+      options.normal = true;
     }
   }
   return options;
