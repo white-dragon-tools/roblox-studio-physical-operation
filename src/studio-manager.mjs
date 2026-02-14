@@ -28,6 +28,27 @@ export function saveLogIndex(index) {
   } catch {}
 }
 
+// pid → placePath 持久化映射
+function getPidPlaceMap() {
+  const index = loadLogIndex();
+  return index._pidPlaceMap || {};
+}
+
+function setPidPlace(pid, placePath) {
+  const index = loadLogIndex();
+  if (!index._pidPlaceMap) index._pidPlaceMap = {};
+  index._pidPlaceMap[pid] = placePath;
+  saveLogIndex(index);
+}
+
+function removePidPlace(pid) {
+  const index = loadLogIndex();
+  if (index._pidPlaceMap) {
+    delete index._pidPlaceMap[pid];
+    saveLogIndex(index);
+  }
+}
+
 export function getLogCommandLineRaw(logPath) {
   try {
     const content = readFileSync(logPath, { encoding: "utf-8" });
@@ -123,16 +144,16 @@ export async function listInstances() {
   const instances = [];
 
   if (process.platform === "darwin") {
-    // macOS: 通过 CrashHandler/lsof 映射 PID → 日志 → place_path
     const pidLogMap = buildPidLogMapMac(processes);
+    const pidPlaceMap = getPidPlaceMap();
     for (const proc of processes) {
       const hwnd = p.findWindowByPid(proc.pid);
       const logPath = pidLogMap[proc.pid];
-      let placePath = null;
+      let placePath = pidPlaceMap[proc.pid] || null;
       let placeId = null;
       let type = "local";
 
-      if (logPath) {
+      if (!placePath && logPath) {
         placePath = getLogPlacePath(logPath);
       }
 
@@ -283,6 +304,20 @@ export async function findSessionByPlacePath(placePath) {
 
   if (process.platform === "darwin") {
     const pidLogMap = buildPidLogMapMac(processes);
+
+    // 0) pid→placePath 映射（openPlace 时写入）
+    const pidPlaceMap = getPidPlaceMap();
+    for (const proc of processes) {
+      const mapped = pidPlaceMap[proc.pid];
+      if (mapped && normalize(mapped).toLowerCase() === normalized) {
+        const hwnd = p.findWindowByPid(proc.pid);
+        if (hwnd) {
+          const logPath = pidLogMap[proc.pid] || null;
+          return { placePath, logPath, hwnd, pid: proc.pid };
+        }
+      }
+    }
+
     const lockFile = normalize(placePath + ".lock").toLowerCase();
 
     // 1) lsof 检查哪个进程持有 .rbxl.lock 文件
@@ -390,6 +425,7 @@ export async function openPlace(placePath) {
     while (Date.now() - start < 30000) {
       const session = await findSessionByPlacePath(placePath);
       if (session) {
+        setPidPlace(session.pid, placePath);
         return [true, `Studio started (PID: ${session.pid}, HWND: ${session.hwnd})`];
       }
       await new Promise((r) => setTimeout(r, 2000));
@@ -410,6 +446,8 @@ export async function closePlace(placePath = null, placeId = null) {
     } else {
       execSync(`kill -9 ${session.pid}`, { timeout: 5000 });
     }
+
+    removePidPlace(session.pid);
 
     if (placePath && !placePath.startsWith("cloud:")) {
       const lockPath = placePath + ".lock";
