@@ -22,6 +22,8 @@ export const {
   captureWindow,
   captureWindowToBuffer,
   captureViewport,
+  activateWindow,
+  hideWindow,
   clickAt,
   rightClickAt,
   doubleClickAt,

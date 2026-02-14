@@ -16,6 +16,8 @@ const KEYEVENTF_KEYUP = 0x0002;
 const WM_CLOSE = 0x0010;
 const WM_KEYDOWN = 0x0100;
 const WM_KEYUP = 0x0101;
+const SW_HIDE = 0;
+const SW_SHOW = 5;
 const SW_RESTORE = 9;
 const PW_RENDERFULLCONTENT = 2;
 
@@ -318,6 +320,16 @@ export function captureWindowWithModals(hwnd, pid, outputPath) {
 export function getModalWindows(hwnd, pid) {
   const all = findAllWindowsByPid(pid);
   return all.filter((w) => w.hwnd !== hwnd && w.width > 50 && w.height > 50);
+}
+
+export function activateWindow(hwnd, _pid) {
+  if (IsIconic(hwnd)) ShowWindow(hwnd, SW_RESTORE);
+  ensureForeground(hwnd);
+  return true;
+}
+
+export function hideWindow(hwnd, _pid) {
+  return ShowWindow(hwnd, SW_HIDE);
 }
 
 export function closeModalWindow(modalHwnd) {

@@ -538,6 +538,28 @@ export function getModalWindows(mainWindowId, pid) {
   return all.filter((w) => w.hwnd !== mainWindowId && w.width > 50 && w.height > 50);
 }
 
+export function activateWindow(_windowId, pid) {
+  try {
+    activateApp(pid);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function hideWindow(_windowId, pid) {
+  try {
+    runOsascript(`
+      tell application "System Events"
+        set visible of (first process whose unix id is ${pid}) to false
+      end tell
+    `);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function closeModalWindow(_windowId) {
   // macOS: send Escape key as fallback
   return sendKey(0x1b); // VK_ESCAPE

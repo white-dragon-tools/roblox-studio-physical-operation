@@ -28,46 +28,7 @@ async function getStudioManager() {
 
 async function list() {
   const sm = await getStudioManager();
-  const p = await getPlatform();
-
-  const processes = sm.getAllStudioProcesses();
-  const logFiles = sm.findLatestStudioLogs(20);
-  const logCmdlines = sm.getAllLogCmdlines(logFiles);
-
-  const instances = [];
-
-  for (const proc of processes) {
-    const hwnd = p.findWindowByPid(proc.pid);
-
-    let cmdline = proc.cmdline || "";
-    for (const [logPath, logCmd] of Object.entries(logCmdlines)) {
-      if (hwnd && !cmdline) {
-        cmdline = logCmd;
-        break;
-      }
-    }
-
-    const placeIdMatch = cmdline.match(/-placeId\s+(\d+)/);
-    if (placeIdMatch) {
-      instances.push({
-        pid: proc.pid,
-        hwnd,
-        type: "cloud",
-        place_id: parseInt(placeIdMatch[1], 10),
-      });
-    } else {
-      const rbxlMatch = cmdline.match(/\.exe["\s]+(.+\.rbxl)/i);
-      const placePath = rbxlMatch ? rbxlMatch[1].replace(/"/g, "") : null;
-      instances.push({
-        pid: proc.pid,
-        hwnd,
-        type: "local",
-        place_path: placePath,
-      });
-    }
-  }
-
-  return instances;
+  return sm.listInstances();
 }
 
 async function open(placePath) {
@@ -76,6 +37,24 @@ async function open(placePath) {
   const pidMatch = message.match(/PID:\s*(\d+)/);
   const pid = pidMatch ? parseInt(pidMatch[1], 10) : null;
   return { success, message, pid };
+}
+
+async function activate(placePath) {
+  const sm = await getStudioManager();
+  const p = await getPlatform();
+  const [ok, msg, session] = await sm.getSession(placePath);
+  if (!ok) return { success: false, message: msg };
+  const result = p.activateWindow(session.hwnd, session.pid);
+  return { success: result, message: result ? "已激活窗口" : "激活窗口失败" };
+}
+
+async function hide(placePath) {
+  const sm = await getStudioManager();
+  const p = await getPlatform();
+  const [ok, msg, session] = await sm.getSession(placePath);
+  if (!ok) return { success: false, message: msg };
+  const result = p.hideWindow(session.hwnd, session.pid);
+  return { success: result, message: result ? "已隐藏窗口" : "隐藏窗口失败" };
 }
 
 async function close(placePath) {
@@ -353,6 +332,14 @@ const COMMANDS = {
     args: "<place_path>",
     desc: "打开 Studio 并加载指定的 .rbxl 文件",
   },
+  activate: {
+    args: "<place_path>",
+    desc: "激活（前置）Studio 窗口",
+  },
+  hide: {
+    args: "<place_path>",
+    desc: "隐藏 Studio 窗口",
+  },
   close: {
     args: "<place_path>",
     desc: "关闭指定 Place 的 Studio 实例",
@@ -421,6 +408,8 @@ Commands:
     list                            列出所有运行中的 Studio 实例
     open <place_path>               打开 Studio
     close <place_path>              关闭 Studio
+    activate <place_path>           激活（前置）Studio 窗口
+    hide <place_path>               隐藏 Studio 窗口
     status <place_path>             获取综合状态
 
   模态弹窗:
@@ -533,6 +522,26 @@ async function main() {
           process.exit(1);
         }
         result = await open(placePath);
+        break;
+      }
+
+      case "activate": {
+        const placePath = args[1];
+        if (!placePath || placePath.startsWith("-")) {
+          console.log(JSON.stringify({ error: "缺少 place_path 参数" }));
+          process.exit(1);
+        }
+        result = await activate(placePath);
+        break;
+      }
+
+      case "hide": {
+        const placePath = args[1];
+        if (!placePath || placePath.startsWith("-")) {
+          console.log(JSON.stringify({ error: "缺少 place_path 参数" }));
+          process.exit(1);
+        }
+        result = await hide(placePath);
         break;
       }
 

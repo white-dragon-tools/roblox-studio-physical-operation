@@ -42,6 +42,8 @@ export function getCommandExamples(command) {
   const exampleMap = {
     list: "  rspo list",
     open: `  rspo open ${p}`,
+    activate: `  rspo activate ${p}`,
+    hide: `  rspo hide ${p}`,
     close: `  rspo close ${p}`,
     status: `  rspo status ${p}\n\n  Output: { "active": true, "ready": true, "pid": 12345, "hwnd": 67890, "has_modal": false, "log_path": "..." }`,
     modal: `  rspo modal ${p}\n  rspo modal ${p} --close`,

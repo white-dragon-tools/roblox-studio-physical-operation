@@ -115,6 +115,67 @@ export function getAllStudioProcesses() {
   return getAllStudioProcessesMac();
 }
 
+// 统一的实例列表函数，跨平台解析 PID → place_path
+export async function listInstances() {
+  const p = await getPlatformModule();
+  const processes = getAllStudioProcesses();
+  const logFiles = findLatestStudioLogs(20);
+  const instances = [];
+
+  if (process.platform === "darwin") {
+    // macOS: 通过 CrashHandler/lsof 映射 PID → 日志 → place_path
+    const pidLogMap = buildPidLogMapMac(processes);
+    for (const proc of processes) {
+      const hwnd = p.findWindowByPid(proc.pid);
+      const logPath = pidLogMap[proc.pid];
+      let placePath = null;
+      let placeId = null;
+      let type = "local";
+
+      if (logPath) {
+        placePath = getLogPlacePath(logPath);
+      }
+
+      const cmdline = proc.cmdline || "";
+      const placeIdMatch = cmdline.match(/-placeId\s+(\d+)/);
+      if (placeIdMatch) {
+        type = "cloud";
+        placeId = parseInt(placeIdMatch[1], 10);
+      }
+
+      const entry = { pid: proc.pid, hwnd, type };
+      if (type === "cloud") entry.place_id = placeId;
+      else entry.place_path = placePath;
+      instances.push(entry);
+    }
+  } else {
+    // Windows: 通过日志命令行解析
+    const logCmdlines = getAllLogCmdlines(logFiles);
+    for (const proc of processes) {
+      const hwnd = p.findWindowByPid(proc.pid);
+
+      let cmdline = proc.cmdline || "";
+      for (const [, logCmd] of Object.entries(logCmdlines)) {
+        if (hwnd && !cmdline) {
+          cmdline = logCmd;
+          break;
+        }
+      }
+
+      const placeIdMatch = cmdline.match(/-placeId\s+(\d+)/);
+      if (placeIdMatch) {
+        instances.push({ pid: proc.pid, hwnd, type: "cloud", place_id: parseInt(placeIdMatch[1], 10) });
+      } else {
+        const rbxlMatch = cmdline.match(/\.exe["\s]+(.+\.rbxl)/i);
+        const placePath = rbxlMatch ? rbxlMatch[1].replace(/"/g, "") : null;
+        instances.push({ pid: proc.pid, hwnd, type: "local", place_path: placePath });
+      }
+    }
+  }
+
+  return instances;
+}
+
 function getAllStudioProcessesWindows() {
   try {
     // Use Get-Process (fast) instead of Win32_Process (slow/hangs)
@@ -153,7 +214,8 @@ function getAllStudioProcessesMac() {
           }).trim();
         } catch {}
         return { pid, cmdline };
-      });
+      })
+      .filter(({ cmdline }) => !cmdline.includes("RobloxCrashHandler"));
   } catch {
     return [];
   }
@@ -220,8 +282,24 @@ export async function findSessionByPlacePath(placePath) {
   const p = await getPlatformModule();
 
   if (process.platform === "darwin") {
-    // Mac: use PID -> log -> place path mapping for precise matching
     const pidLogMap = buildPidLogMapMac(processes);
+    const lockFile = normalize(placePath + ".lock").toLowerCase();
+
+    // 1) lsof 检查哪个进程持有 .rbxl.lock 文件
+    for (const proc of processes) {
+      try {
+        const lsofResult = execSync(`lsof -p ${proc.pid} 2>/dev/null`, { encoding: "utf-8", timeout: 5000 });
+        if (lsofResult.toLowerCase().includes(lockFile)) {
+          const hwnd = p.findWindowByPid(proc.pid);
+          if (hwnd) {
+            const logPath = pidLogMap[proc.pid] || null;
+            return { placePath, logPath, hwnd, pid: proc.pid };
+          }
+        }
+      } catch {}
+    }
+
+    // 2) fallback: 日志中的 FileOpenEventHandler
     for (const proc of processes) {
       const logPath = pidLogMap[proc.pid];
       if (!logPath) continue;
@@ -301,7 +379,7 @@ export async function openPlace(placePath) {
   try {
     let child;
     if (process.platform === "darwin") {
-      child = spawn("open", ["-a", studioPath, placePath], { detached: true, stdio: "ignore" });
+      child = spawn("open", ["-g", "-a", studioPath, placePath], { detached: true, stdio: "ignore" });
     } else {
       child = spawn(studioPath, [placePath], { detached: true, stdio: "ignore" });
     }
