@@ -1,9 +1,13 @@
 {
   "name": "roblox-studio-physical-operation",
-  "version": "0.5.0",
-  "description": "Roblox Studio 物理操作 - 工具栏检测、游戏控制、日志分析",
+  "version": "0.6.2",
+  "description": "Roblox Studio 自动化 MCP 工具 — 进程管理、游戏控制、日志分析、截图、工具栏状态检测、视口录制。支持 Windows 和 macOS。",
   "author": {
-    "name": "White Dragon Tools"
+    "name": "White Dragon Tools",
+    "url": "https://github.com/white-dragon-tools"
   },
-  "keywords": ["roblox", "studio", "automation", "mcp"]
+  "repository": "https://github.com/white-dragon-tools/roblox-studio-physical-operation",
+  "homepage": "https://github.com/white-dragon-tools/roblox-studio-physical-operation",
+  "license": "MIT",
+  "keywords": ["roblox", "roblox-studio", "automation", "mcp", "game-development"]
 }

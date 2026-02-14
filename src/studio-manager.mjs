@@ -333,7 +333,7 @@ export async function closePlace(placePath = null, placeId = null) {
       execSync(`kill -9 ${session.pid}`, { timeout: 5000 });
     }
 
-    if (process.platform === "win32" && placePath && !placePath.startsWith("cloud:")) {
+    if (placePath && !placePath.startsWith("cloud:")) {
       const lockPath = placePath + ".lock";
       for (let i = 0; i < 3; i++) {
         await new Promise((r) => setTimeout(r, 200));
