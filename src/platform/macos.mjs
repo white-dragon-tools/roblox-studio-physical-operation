@@ -1,5 +1,5 @@
 import { execSync, spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import koffi from "koffi";
@@ -182,6 +182,61 @@ function getAXWindows(pid) {
   }
 }
 
+// 视口位置缓存（持久化到临时文件）
+// 格式：{ pid -> { winRect: {x,y,w,h}, viewportOffset: {dx,dy,width,height} } }
+const VIEWPORT_CACHE_PATH = path.join(os.tmpdir(), "roblox_viewport_cache.json");
+
+function loadViewportCache() {
+  try {
+    return JSON.parse(readFileSync(VIEWPORT_CACHE_PATH, "utf-8"));
+  } catch {
+    return {};
+  }
+}
+
+function saveViewportCache(cache) {
+  try {
+    writeFileSync(VIEWPORT_CACHE_PATH, JSON.stringify(cache));
+  } catch {}
+}
+
+function getCachedViewportRect(pid, windowId) {
+  const cache = loadViewportCache();
+  const cached = cache[pid];
+  if (!cached) return null;
+
+  const windows = getWindowList();
+  const w = windows.find((w) => w.wid === windowId);
+  if (!w) return null;
+
+  const { winRect, viewportOffset } = cached;
+  if (w.x !== winRect.x || w.y !== winRect.y || w.w !== winRect.w || w.h !== winRect.h) {
+    delete cache[pid];
+    saveViewportCache(cache);
+    return null;
+  }
+
+  return {
+    x: w.x + viewportOffset.dx,
+    y: w.y + viewportOffset.dy,
+    width: viewportOffset.width,
+    height: viewportOffset.height,
+  };
+}
+
+function cacheViewportRect(pid, windowId, rect) {
+  const windows = getWindowList();
+  const w = windows.find((w) => w.wid === windowId);
+  if (!w || !rect) return;
+
+  const cache = loadViewportCache();
+  cache[pid] = {
+    winRect: { x: w.x, y: w.y, w: w.w, h: w.h },
+    viewportOffset: { dx: rect.x - w.x, dy: rect.y - w.y, width: rect.width, height: rect.height },
+  };
+  saveViewportCache(cache);
+}
+
 // Find the game viewport rect via AX tree
 // Logic: find AXGroup tab with place filename as title, next sibling is the viewport
 function getViewportRect(pid, placePath) {
@@ -236,8 +291,13 @@ function getViewportRect(pid, placePath) {
 
 // Capture the game viewport from the main window screenshot (Mac only)
 export async function captureViewport(windowId, pid, placePath) {
-  const rect = getViewportRect(pid, placePath);
-  if (!rect) return null;
+  // 优先使用缓存，避免 AX 查询导致激活窗口
+  let rect = getCachedViewportRect(pid, windowId);
+  if (!rect) {
+    rect = getViewportRect(pid, placePath);
+    if (!rect) return null;
+    cacheViewportRect(pid, windowId, rect);
+  }
 
   const tmpPath = path.join(os.tmpdir(), `roblox_capture_${Date.now()}.png`);
   if (!captureWindow(windowId, tmpPath)) return null;
