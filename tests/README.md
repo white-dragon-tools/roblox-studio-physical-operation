@@ -14,14 +14,12 @@ npm run test:watch  # 监视模式
 - `cli.test.mjs` - CLI 参数解析、命令路由测试
 - `studio-manager.test.mjs` - Studio 会话管理测试
 - `screenshot-utils.test.mjs` - 截图工具测试
-- `rojo-inject.test.mjs` - Rojo 注入参数校验、二进制路径发现测试
 
 ## 原生测试
 
 ```bash
 npm run test:native                    # 运行所有原生测试
 npm run test:all                       # 运行单元 + 原生测试
-ROJO_PATH=/path/to/rojo npm run test:native  # 指定 rojo 二进制路径
 ```
 
 原生测试文件：
@@ -29,18 +27,6 @@ ROJO_PATH=/path/to/rojo npm run test:native  # 指定 rojo 二进制路径
 - `studio-manager.native.test.mjs` - Studio 进程管理原生测试
 - `toolbar-detector.native.test.mjs` - 工具栏截图回归测试（running/stopped 样本）
 - `toolbar-detector-unit.native.test.mjs` - 工具栏检测单元原生测试
-- `rojo-inject.native.test.mjs` - Rojo 注入集成测试（需要 `ROJO_PATH` 环境变量）
-
-### Rojo 注入测试
-
-`rojo-inject.native.test.mjs` 需要 rojo-injectable 二进制。无二进制时自动跳过。
-
-测试内容：
-1. 基础 .rbxl 生成 - 验证 `rojo build` 正常工作
-2. 注入成功 - 注入后文件增大（包含新增的 TestFolder 等）
-3. 幂等性 - 同一配置注入 3 次，二进制输出完全一致（`Buffer.compare === 0`）
-4. 无重复 - 注入 1 次和 2 次结果文件大小一致
-5. CLI 命令 - `rspo inject` 命令端到端验证
 
 ## 完整集成测试
 

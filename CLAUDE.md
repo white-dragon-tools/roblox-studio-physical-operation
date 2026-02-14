@@ -29,7 +29,6 @@ MCP (mcp-server.mjs) ──┼──→ studio-manager.mjs ──→ platform/{w
 Library (index.mjs) ──┘     log-utils.mjs
                             log-filter.mjs
                             toolbar-detector.mjs
-                            rojo-inject.mjs ──→ rojo-injectable 二进制
 ```
 
 ### 核心模块职责
@@ -41,7 +40,6 @@ Library (index.mjs) ──┘     log-utils.mjs
 - **platform/index.mjs** — 根据 `process.platform` 动态加载 Windows 或 macOS 后端。
 - **platform/windows.mjs** — Win32 API via koffi（EnumWindows、SendInput、PrintWindow、GDI32）。
 - **platform/macos.mjs** — CoreGraphics + Accessibility API via koffi、screencapture 命令、AppleScript。Viewport 捕获通过 AX 树遍历找到游戏视口坐标后裁剪。
-- **rojo-inject.mjs** — Rojo project.json 注入到已有 .rbxl 文件。调用 rojo-injectable fork 的 `rojo build --merge` 命令，按 name+className 匹配节点进行幂等合并。二进制通过 `ROJO_PATH` 环境变量或 `bin/` 目录定位。
 
 ### 关键依赖
 
@@ -49,14 +47,12 @@ Library (index.mjs) ──┘     log-utils.mjs
 - **opencv-wasm** — 模板匹配（无需原生编译）
 - **sharp** — 图像处理（截图、灰度转换、裁剪）
 - **@modelcontextprotocol/sdk** — MCP 服务器实现
-- **rojo-injectable** — Rojo fork（[yoyo999888/rojo-injectable](https://github.com/yoyo999888/rojo-injectable)），增加 `build --merge` 支持将 project.json 合并注入到已有 .rbxl。外部二进制，不在 npm 依赖中。
 
 ### 测试分层
 
 - `tests/*.test.mjs` — 纯单元测试，不依赖平台 API
 - `tests/*.native.test.mjs` — 原生测试，需要真实运行环境（vitest.native.config.mjs 单独配置）
 - `tests/toolbar_stats/` — 截图样本用于工具栏检测回归测试
-- `tests/rojo-inject.native.test.mjs` — rojo-inject 集成测试，需要 `ROJO_PATH` 指向 rojo-injectable 二进制
 
 ### npm 发布配置
 

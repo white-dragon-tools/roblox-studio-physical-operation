@@ -30,25 +30,12 @@ async function handleList() {
   return sm.listInstances();
 }
 
-async function handleOpen(placePath, injectProjectJson) {
-  if (injectProjectJson) {
-    const { injectIntoPlace } = await import("./rojo-inject.mjs");
-    const injectResult = await injectIntoPlace(placePath, injectProjectJson);
-    if (!injectResult.success) {
-      return { success: false, message: `注入失败: ${injectResult.message}` };
-    }
-  }
-
+async function handleOpen(placePath) {
   const sm = await getStudioManager();
   const [success, message] = await sm.openPlace(placePath);
   const pidMatch = message.match(/PID:\s*(\d+)/);
   const pid = pidMatch ? parseInt(pidMatch[1], 10) : null;
   return { success, message, pid };
-}
-
-async function handleInject(placePath, projectJsonPath) {
-  const { injectIntoPlace } = await import("./rojo-inject.mjs");
-  return injectIntoPlace(placePath, projectJsonPath);
 }
 
 async function handleActivate(placePath) {
@@ -320,14 +307,13 @@ server.tool(
 
 server.tool(
   "open_place",
-  "Open Roblox Studio and load a .rbxl place file. Optionally inject a Rojo project.json config before opening (idempotent merge). Waits up to 30s for the Studio window to appear.",
+  "Open Roblox Studio and load a .rbxl place file. Waits up to 30s for the Studio window to appear.",
   {
     place_path: z.string().describe("Absolute path to the .rbxl place file"),
-    inject_project_json: z.string().optional().describe("Absolute path to a Rojo project.json to inject into the place before opening (idempotent)"),
   },
-  async ({ place_path, inject_project_json }) => {
+  async ({ place_path }) => {
     try {
-      const result = await handleOpen(place_path, inject_project_json);
+      const result = await handleOpen(place_path);
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     } catch (e) {
       return { content: [{ type: "text", text: JSON.stringify({ error: e.message }) }], isError: true };
@@ -506,23 +492,6 @@ server.tool(
   async ({ place_path, duration, fps }) => {
     try {
       const result = await handleRecord(place_path, { duration, fps });
-      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
-    } catch (e) {
-      return { content: [{ type: "text", text: JSON.stringify({ error: e.message }) }], isError: true };
-    }
-  },
-);
-
-server.tool(
-  "inject_into_place",
-  "Inject a Rojo project.json config into an existing .rbxl place file. Merges by name+className matching — idempotent, safe to run multiple times. Modifies the file in-place.",
-  {
-    place_path: z.string().describe("Absolute path to the .rbxl place file to inject into"),
-    project_json_path: z.string().describe("Absolute path to the Rojo project.json config file"),
-  },
-  async ({ place_path, project_json_path }) => {
-    try {
-      const result = await handleInject(place_path, project_json_path);
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     } catch (e) {
       return { content: [{ type: "text", text: JSON.stringify({ error: e.message }) }], isError: true };
